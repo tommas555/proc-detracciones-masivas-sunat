@@ -1,2 +1,3 @@
 # No se requieren dependencias externas
 # Tu código usa solo módulos built-in de Python 3.x
+Flask==3.0.3
