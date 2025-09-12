@@ -1,16 +1,17 @@
 # app.py
 import os
+import zipfile
 from flask import Flask, request, send_file, render_template_string
 from werkzeug.utils import secure_filename
 from decimal import Decimal
 from tempfile import TemporaryDirectory
-import shutil
 
 # Importamos tu función run_pipeline desde procesador.py
 from procesador import run_pipeline
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB max upload
+app.config['SECRET_KEY'] = 'tu_clave_secreta_aqui'  # Cambia esto en producción
 
 HTML_FORM = '''
 <!doctype html>
@@ -23,10 +24,10 @@ HTML_FORM = '''
             <label for="files" class="form-label">Selecciona tus archivos XML o ZIP:</label>
             <input class="form-control" type="file" name="files" id="files" multiple required>
         </div>
-        <button type="submit" class="btn btn-primary">Procesar y Descargar TXT</button>
+        <button type="submit" class="btn btn-primary">Procesar y Descargar Resultados (TXT + CSV)</button>
     </form>
     <div class="alert alert-info">
-        <strong>Nota:</strong> Este sistema procesa archivos XML de facturas electrónicas y genera el archivo .txt para pago masivo de detracciones en SUNAT.
+        <strong>Nota:</strong> Este sistema procesa archivos XML de facturas electrónicas y genera el archivo .txt para pago masivo de detracciones en SUNAT, junto con un reporte de omitidos en .csv.
     </div>
 </div>
 '''
@@ -60,11 +61,32 @@ def upload_and_process():
 
                 # Buscar el archivo .txt generado
                 txt_files = [f for f in os.listdir(output_temp) if f.endswith('.txt')]
-                if txt_files:
-                    txt_path = os.path.join(output_temp, txt_files[0])
-                    return send_file(txt_path, as_attachment=True, download_name=txt_files[0])
-                else:
+                # Buscar el archivo omitidos.csv
+                csv_files = [f for f in os.listdir(output_temp) if f == "omitidos.csv"]
+
+                if not txt_files:
                     return "❌ No se generó ningún archivo .txt. Revisa los XML.", 400
+
+                # Crear un ZIP con ambos archivos
+                zip_filename = "resultados_detracciones.zip"
+                zip_path = os.path.join(output_temp, zip_filename)
+
+                with zipfile.ZipFile(zip_path, 'w') as zipf:
+                    # Añadir el TXT
+                    txt_path = os.path.join(output_temp, txt_files[0])
+                    zipf.write(txt_path, arcname=txt_files[0])
+                    # Añadir el CSV si existe
+                    if csv_files:
+                        csv_path = os.path.join(output_temp, csv_files[0])
+                        zipf.write(csv_path, arcname=csv_files[0])
+
+                # Enviar el ZIP como descarga
+                return send_file(
+                    zip_path,
+                    as_attachment=True,
+                    download_name=zip_filename,
+                    mimetype='application/zip'
+                )
 
             except Exception as e:
                 return f"❌ Error al procesar: {str(e)}", 500
