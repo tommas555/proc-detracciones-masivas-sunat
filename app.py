@@ -3,7 +3,7 @@ import os
 import zipfile
 from flask import Flask, request, send_file, render_template_string
 from werkzeug.utils import secure_filename
-from decimal import Decimal  # ✅ Corregido: "Decimal" con "d" minúscula
+from decimal import Decimal
 from tempfile import TemporaryDirectory
 
 # Importamos tu función run_pipeline desde procesador.py
@@ -23,7 +23,11 @@ HTML_FORM = '''
         <div class="mb-3">
             <label for="files" class="form-label">Selecciona tus archivos XML o ZIP:</label>
             <input class="form-control" type="file" name="files" id="files" multiple required accept=".xml,.zip" title="Solo XML y ZIP files are allowed">
-            <div id="fileCount" class="form-text text-muted mt-1">Ningún archivo seleccionado.</div>
+        </div>
+        <div class="mb-3">
+            <label for="lote" class="form-label">Número de Lote (6 dígitos, ej: 250001):</label>
+            <input class="form-control" type="text" name="lote" id="lote" required pattern="[0-9]{6}" title="Debe ser un número de 6 dígitos" placeholder="Ej: 250001">
+            <div class="form-text text-muted">Formato: AANNNN (Año + Número secuencial).</div>
         </div>
         <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary" disabled>Procesar y Descargar Resultados (TXT + CSV)</button>
@@ -39,41 +43,50 @@ HTML_FORM = '''
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('uploadForm');
     const filesInput = document.getElementById('files');
-    const fileCountDiv = document.getElementById('fileCount');
     const submitButton = form.querySelector('button[type="submit"]');
     const clearButton = document.getElementById('clearButton');
 
-    // Habilitar/deshabilitar botón y mostrar conteo
-    filesInput.addEventListener('change', function() {
-        if (filesInput.files.length > 0) {
-            // Verificar que todos los archivos son XML o ZIP
-            const validFiles = Array.from(filesInput.files).filter(file => {
-                const name = file.name.toLowerCase();
-                return name.endsWith('.xml') || name.endsWith('.zip');
-            });
+    // Cambiar el texto del botón "Browse..." por "Adjuntar"
+    const fileInput = document.querySelector('input[type="file"]');
+    if (fileInput) {
+        fileInput.style.display = 'none';  // Ocultar el input original
+    }
 
-            if (validFiles.length === filesInput.files.length) {
-                submitButton.disabled = false;
-                fileCountDiv.textContent = `✅ Se seleccionaron ${filesInput.files.length} archivo(s).`;
-            } else {
-                // Mostrar error si hay archivos inválidos
-                alert("❌ Solo se permiten archivos XML (.xml) y ZIP (.zip).");
-                filesInput.value = '';
-                submitButton.disabled = true;
-                fileCountDiv.textContent = "Ningún archivo seleccionado.";
-            }
+    // Crear un botón personalizado "Adjuntar"
+    const adjuntarBtn = document.createElement('button');
+    adjuntarBtn.type = 'button';
+    adjuntarBtn.className = 'btn btn-light border';
+    adjuntarBtn.textContent = 'Adjuntar';
+    adjuntarBtn.style.marginRight = '10px';
+
+    // Añadir evento al botón "Adjuntar"
+    adjuntarBtn.addEventListener('click', function() {
+        filesInput.click();  // Abrir el diálogo de selección de archivos
+    });
+
+    // Insertar el botón personalizado antes del input original
+    const label = document.querySelector('label[for="files"]');
+    label.appendChild(adjuntarBtn);
+
+    // Habilitar/deshabilitar botón y validar lote
+    function updateSubmitButton() {
+        const loteInput = document.getElementById('lote');
+        if (filesInput.files.length > 0 && loteInput.validity.valid) {
+            submitButton.disabled = false;
         } else {
             submitButton.disabled = true;
-            fileCountDiv.textContent = "Ningún archivo seleccionado.";
         }
-    });
+    }
+
+    filesInput.addEventListener('change', updateSubmitButton);
+    document.getElementById('lote').addEventListener('input', updateSubmitButton);
 
     // Resetear formulario después de enviar
     form.addEventListener('submit', function() {
         setTimeout(function() {
             filesInput.value = '';
+            document.getElementById('lote').value = '';
             submitButton.disabled = true;
-            fileCountDiv.textContent = "Ningún archivo seleccionado.";
         }, 1500);
     });
 
@@ -81,8 +94,6 @@ document.addEventListener('DOMContentLoaded', function() {
     clearButton.addEventListener('click', function() {
         filesInput.value = '';
         submitButton.disabled = true;
-        fileCountDiv.textContent = "Ningún archivo seleccionado.";
-        filesInput.dispatchEvent(new Event('change')); // Disparar evento para resetear estado
     });
 });
 </script>
@@ -92,10 +103,14 @@ document.addEventListener('DOMContentLoaded', function() {
 def upload_and_process():
     if request.method == 'POST':
         files = request.files.getlist("files")
+        lote = request.form.get("lote", "").strip()
+
         if not files or not files[0].filename:
             return "❌ No se seleccionaron archivos.", 400
 
-        # ✅ CORREGIDO: Espacio después de "with"
+        if not lote or len(lote) != 6 or not lote.isdigit():
+            return "❌ El número de lote debe ser un número de 6 dígitos (ej: 250001).", 400
+
         with TemporaryDirectory() as input_temp:
             with TemporaryDirectory() as output_temp:
                 # Guardar archivos subidos
@@ -108,7 +123,7 @@ def upload_and_process():
                     run_pipeline(
                         input_dir=input_temp,
                         output_dir=output_temp,
-                        lote="250001",
+                        lote=lote,  # ✅ Ahora viene del formulario
                         min_monto=Decimal("700.00"),
                         tipo_operacion_txt="01",
                         enforce_code_whitelist=False,
@@ -130,14 +145,14 @@ def upload_and_process():
                         ruc = "desconocido"
 
                     zip_filename = f"detracciones_{ruc}.zip"
-                    zip_path = os.path.join(output_temp, zip_filename)  # ✅ CORREGIDO: os.path.join
+                    zip_path = os.path.join(output_temp, zip_filename)
 
                     # Crear ZIP
                     with zipfile.ZipFile(zip_path, 'w') as zipf:
-                        txt_path = os.path.join(output_temp, txt_filename)  # ✅ CORREGIDO: os.path.join
+                        txt_path = os.path.join(output_temp, txt_filename)
                         zipf.write(txt_path, arcname=txt_filename)
                         if csv_files:
-                            csv_path = os.path.join(output_temp, csv_files[0])  # ✅ CORREGIDO: os.path.join
+                            csv_path = os.path.join(output_temp, csv_files[0])
                             zipf.write(csv_path, arcname=csv_files[0])
 
                     # Enviar como descarga
