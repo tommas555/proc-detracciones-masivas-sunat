@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import argparse
 import csv
 import glob
 import os
-import re
-import shutil
 import unicodedata
 import zipfile
 from decimal import Decimal, ROUND_HALF_UP
@@ -109,9 +106,8 @@ def parse_xml_fields(path):
     - cliente_doc_tipo, cliente_doc_num, cliente_razon
     - invoice_tipo (01/03), serie (4), numero (8), periodo (aaaamm), issue_date, payable_amount
     - detrac_codigo, detrac_importe (Decimal), tiene_detraccion (bool)
-    - source (archivo)
+    - source (archivo), fullpath, comprobante (ID)
     """
-    # Muchos CPE vienen ISO-8859-1/UTF-8, ElementTree auto-detecta desde el prolog
     tree = ET.parse(path)
     root = tree.getroot()
 
@@ -128,7 +124,7 @@ def parse_xml_fields(path):
     cli_razon = root.find(".//cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName", NS)
     cliente_razon = sin_tildes_upper(leer_text(cli_razon))
 
-    # Cabecera del comprobante
+    # Comprobante (ID, serie y número)
     invoice_id = root.find("./cbc:ID", NS)
     comp_id = leer_text(invoice_id).strip()
     serie, numero = ("    ", "00000000")
@@ -163,7 +159,6 @@ def parse_xml_fields(path):
     if tiene_detraccion:
         detrac_codigo = leer_text(detr_pt.find("./cbc:PaymentMeansID", NS)).strip()
         detr_amount = leer_text(detr_pt.find("./cbc:Amount", NS)).strip() or "0"
-        # Sanear coma/punto decimal si viniera con coma
         detr_amount = detr_amount.replace(",", ".")
         detrac_importe = Decimal(detr_amount)
 
@@ -193,6 +188,7 @@ def parse_xml_fields(path):
         "tiene_detraccion": tiene_detraccion,
         "source": os.path.basename(path),
         "fullpath": path,
+        "comprobante": comp_id,  # NUEVO
     }
 
 def construir_detalle_proveedor(rec, tipo_operacion_txt="01"):
@@ -236,6 +232,37 @@ def construir_detalle_proveedor(rec, tipo_operacion_txt="01"):
     return detalle
 
 # ---------------------------------------
+# Helper para OMITIDOS con más datos
+# ---------------------------------------
+def add_omit(omitidos, rec_or_none, archivo, motivo):
+    """
+    Agrega una fila a 'omitidos' con más contexto:
+    - archivo, comprobante, motivo, payable_amount, detrac_codigo, detrac_importe
+    """
+    row = {
+        "archivo": archivo,
+        "comprobante": "",
+        "motivo": motivo,
+        "payable_amount": "",
+        "detrac_codigo": "",
+        "detrac_importe": "",
+    }
+    if rec_or_none:
+        row["comprobante"] = rec_or_none.get("comprobante", "")
+        pa = rec_or_none.get("payable_amount", None)
+        if isinstance(pa, Decimal):
+            row["payable_amount"] = f"{pa:.2f}"
+        else:
+            row["payable_amount"] = str(pa or "")
+        row["detrac_codigo"] = rec_or_none.get("detrac_codigo", "")
+        di = rec_or_none.get("detrac_importe", None)
+        if isinstance(di, Decimal):
+            row["detrac_importe"] = f"{di:.2f}"
+        else:
+            row["detrac_importe"] = str(di or "")
+    omitidos.append(row)
+
+# ---------------------------------------
 # Pipeline principal
 # ---------------------------------------
 def run_pipeline(
@@ -248,12 +275,11 @@ def run_pipeline(
     code_whitelist: set[str]
 ):
     ensure_dir(output_dir)
-    # Staging temporal para XML extraídos
     with TemporaryDirectory() as tmpdir:
-        # 1) recolectar ZIP y XML
+        # 1) Recolectar ZIP y XML
         zips, xmls = collect_input_files(input_dir)
 
-        # 2) extraer xml de zip
+        # 2) Extraer xml de ZIP
         extracted = []
         for z in zips:
             try:
@@ -261,13 +287,11 @@ def run_pipeline(
             except Exception as e:
                 print(f"[WARN] ZIP inválido: {z} -> {e}")
 
-        # 3) consolidar todos los xml a procesar (xmls en disco + extraídos)
+        # 3) Consolidar todos los XML
         all_xmls = []
-        # XMLs en input (recursivo, case-insensitive)
         all_xmls.extend(xmls)
-        # XMLs extraídos en tmp
         all_xmls.extend(list_files_case_insensitive(tmpdir, ["**/*.xml", "**/*.XML"]))
-        # Normalizar rutas únicas
+
         seen = set()
         final_xmls = []
         for p in all_xmls:
@@ -289,45 +313,44 @@ def run_pipeline(
             try:
                 rec = parse_xml_fields(path)
             except Exception as e:
-                omitidos.append({"archivo": os.path.basename(path), "motivo": f"XML inválido: {e}"})
+                add_omit(omitidos, None, os.path.basename(path), f"XML inválido: {e}")
                 continue
 
-            # Capturar datos proveedor para cabecera desde el primer válido
+            # Proveedor para cabecera desde el primero válido
             if not proveedor_ruc and rec["proveedor_ruc"]:
                 proveedor_ruc = rec["proveedor_ruc"]
                 proveedor_razon = rec["proveedor_razon"]
 
             # Validaciones
             if rec["payable_amount"] < min_monto:
-                omitidos.append({"archivo": rec["source"], "motivo": f"PayableAmount < {min_monto}"})
+                add_omit(omitidos, rec, rec["source"], f"PayableAmount < {min_monto}")
                 continue
 
             if not rec["tiene_detraccion"]:
-                omitidos.append({"archivo": rec["source"], "motivo": "Sin PaymentTerms[ID='Detraccion']"})
+                add_omit(omitidos, rec, rec["source"], "Sin PaymentTerms[ID='Detraccion']")
                 continue
 
             if not rec["detrac_codigo"]:
-                omitidos.append({"archivo": rec["source"], "motivo": "Sin PaymentMeansID (código detracción)"})
+                add_omit(omitidos, rec, rec["source"], "Sin PaymentMeansID (código detracción)")
                 continue
 
-            # (opcional) lista blanca de códigos
             if enforce_code_whitelist and rec["detrac_codigo"] not in code_whitelist:
-                omitidos.append({"archivo": rec["source"], "motivo": f"Código detracción no permitido: {rec['detrac_codigo']}"})
+                add_omit(omitidos, rec, rec["source"], f"Código detracción no permitido: {rec['detrac_codigo']}")
                 continue
 
             if rec["detrac_importe"] <= 0:
-                omitidos.append({"archivo": rec["source"], "motivo": "Amount de detracción <= 0"})
+                add_omit(omitidos, rec, rec["source"], "Amount de detracción <= 0")
                 continue
 
             if not rec["cuenta_bn"]:
-                omitidos.append({"archivo": rec["source"], "motivo": "Sin cuenta BN (PaymentMeans/PayeeFinancialAccount/ID)"})
+                add_omit(omitidos, rec, rec["source"], "Sin cuenta BN (PaymentMeans/PayeeFinancialAccount/ID)")
                 continue
 
             try:
                 detalle = construir_detalle_proveedor(rec, tipo_operacion_txt=tipo_operacion_txt)
                 aceptados.append({"rec": rec, "detalle": detalle})
             except Exception as e:
-                omitidos.append({"archivo": rec["source"], "motivo": f"Detalle inválido: {e}"})
+                add_omit(omitidos, rec, rec["source"], f"Detalle inválido: {e}")
 
         if not aceptados:
             # Escribir omitidos si los hay
@@ -335,9 +358,9 @@ def run_pipeline(
                 out_omit = os.path.join(output_dir, "omitidos.csv")
                 with open(out_omit, "w", newline="", encoding="utf-8") as f:
                     wr = csv.writer(f, delimiter=";")
-                    wr.writerow(["archivo", "motivo"])
+                    wr.writerow(["archivo","comprobante","motivo","payable_amount","detrac_codigo","detrac_importe"])
                     for r in omitidos:
-                        wr.writerow([r["archivo"], r["motivo"]])
+                        wr.writerow([r["archivo"], r["comprobante"], r["motivo"], r["payable_amount"], r["detrac_codigo"], r["detrac_importe"]])
                 print(f"[INFO] No hay detalles válidos. Ver {out_omit}")
             else:
                 print("[INFO] No hay detalles válidos.")
@@ -349,7 +372,7 @@ def run_pipeline(
             total_cent += int((a["rec"]["detrac_importe"].quantize(Decimal("0.01")) * 100))
         total15 = str(total_cent).rjust(15, "0")
 
-        # Cabecera (indicador P)
+        # Cabecera (indicador P fijo en esta versión)
         indicador = "P"
         ruc11 = proveedor_ruc[-11:].rjust(11, "0")
         razon35 = sin_tildes_upper(proveedor_razon)[:35].ljust(35, " ")
@@ -377,42 +400,23 @@ def run_pipeline(
             out_omit = os.path.join(output_dir, "omitidos.csv")
             with open(out_omit, "w", newline="", encoding="utf-8") as f:
                 wr = csv.writer(f, delimiter=";")
-                wr.writerow(["archivo", "motivo"])
+                wr.writerow(["archivo","comprobante","motivo","payable_amount","detrac_codigo","detrac_importe"])
                 for r in omitidos:
-                    wr.writerow([r["archivo"], r["motivo"]])
+                    wr.writerow([r["archivo"], r["comprobante"], r["motivo"], r["payable_amount"], r["detrac_codigo"], r["detrac_importe"]])
             print(f"[INFO] Omitidos: {len(omitidos)} (ver {out_omit})")
 
-
-# def main():
-#     parser = argparse.ArgumentParser(
-#         description="Genera TXT de Pago Masivo (PROVEEDOR) a partir de XML/ZIP SUNAT."
-#     )
-#     # Defaults locales (ajusta a tus rutas)
-#     DEFAULT_INPUT  = "/home/tom/Documentos/PagoMasivo/XML/"
-#     DEFAULT_OUTPUT = "/home/tom/Documentos/PagoMasivo/"
-#     DEFAULT_LOTE   = "250001"
-
-#     parser.add_argument("--input",  default=DEFAULT_INPUT,  help="Carpeta de entrada con .xml y/o .zip")
-#     parser.add_argument("--output", default=DEFAULT_OUTPUT, help="Carpeta de salida para TXT y reportes")
-#     parser.add_argument("--lote",   default=DEFAULT_LOTE,   help="Número de lote AANNNN (ej. 250001)")
-#     parser.add_argument("--min-monto", default=str(DEFAULT_MIN_MONTO), help="Mínimo PayableAmount (PEN). Default: 800.00")
-#     parser.add_argument("--tipo-op", default=DEFAULT_TIPO_OPERACION_TXT, help="Tipo de operación TXT (2 dígitos). Default: 01")
-#     parser.add_argument("--enforce-codes", action="store_true", help="Exigir lista blanca de códigos de detracción")
-#     parser.add_argument("--codes", default=",".join(sorted(DEFAULT_CODE_WHITELIST)),
-#                         help="Lista blanca de códigos (coma-separados). Sólo si --enforce-codes")
-
-    ##args = parser.parse_args()
-    
-
+# ---------------------------------------
+# MAIN (local, sin argparse)
+# ---------------------------------------
 # if __name__ == "__main__":
-#      # En notebook, define directamente:
-#     input_dir = "/home/tom/Documentos/PagoMasivo/XML/"
-#     output_dir = "/home/tom/Documentos/PagoMasivo/"
+#     # Define aquí tus rutas locales de prueba:
+#     input_dir = "/home/tom/Documentos/PagoMasivo/XML/"   # XML/ZIP
+#     output_dir = "/home/tom/Documentos/PagoMasivo/"      # TXT y omitidos.csv
 #     lote = "250001"
-#     min_monto = Decimal("800.00")
-#     tipo_op = "01"
+#     min_monto = DEFAULT_MIN_MONTO
+#     tipo_op = DEFAULT_TIPO_OPERACION_TXT
 #     enforce = False
-#     whitelist = set()
+#     whitelist = set()  # o set(DEFAULT_CODE_WHITELIST) si quieres activar con 'enforce=True'
 
 #     run_pipeline(
 #         input_dir=input_dir,
@@ -423,4 +427,3 @@ def run_pipeline(
 #         enforce_code_whitelist=enforce,
 #         code_whitelist=whitelist
 #     )
-
