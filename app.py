@@ -3,35 +3,35 @@ import os
 import zipfile
 from flask import Flask, request, send_file, render_template_string
 from werkzeug.utils import secure_filename
-from decimal import Decimal
+from Decimal import Decimal
 from tempfile import TemporaryDirectory
 
-# Importamos tu función run_pipeline desde procesador.py
-from procesador import run_pipeline
+# Importamos tu función run_pipeline desde procesedor.py
+from procesedor import run_pipeline
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB max upload
-app.config['SECRET_KEY'] = 'clave_secreta_para_flask_2025'
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB maxupload
+app.config['SECRET_KEY'] = 'clave_secretaaparaflask_2025'
 
 HTML_FORM = '''
 <!doctype html>
-<title>Procesador de XML para Detracciones SUNAT</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<title>Procesador de XML para DetraccionesSUNAT</title>
+<linkhref="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <div class="container mt-5">
-    <h1 class="mb-4">Procesador de XML/ZIP → TXT Detracciones</h1>
+    <h1 class="mb-4">Procesador deXML/ZIP → TXTDetracciones</h1>
     <form id="uploadForm" method="post" enctype="multipart/form-data" class="mb-4">
         <div class="mb-3">
-            <label for="files" class="form-label">Selecciona tus archivos XML o ZIP:</label>
-            <input class="form-control" type="file" name="files" id="files" multiple required>
-            <div id="fileCount" class="form-text text-muted mt-1">Ningún archivo seleccionado.</div>
+            <label for="files" class="form-label">Selecciona tus archivosXML oZIP:</label>
+            <input class="form-control" type="file" name="files" id="files" multiplerequired accept=".xml,.zip" title="Solo XML y ZIP files are allowed">
+            <div id="fileCount" class="form-text text-muted mt-1">Ningúnarchivoseleccionado.</div>
         </div>
         <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-primary" disabled>Procesar y Descargar Resultados (TXT + CSV)</button>
-            <button type="button" class="btn btn-outline-secondary" id="clearButton">Borrar selección</button>
+            <button type="submit" class="btnbtn-primary"disabled>Procesar yDescargarResultados (TXT + CSV)</button>
+            <button type="button" class="btnbtn-outline-secondary" id="clearButton">Borrar selección</button>
         </div>
     </form>
     <div class="alert alert-info">
-        <strong>Nota:</strong> Este sistema procesa archivos XML de facturas electrónicas y genera el archivo .txt para pago masivo de detracciones en SUNAT, junto con un reporte detallado de omitidos en .csv.
+        <strong>Nota:</strong>Este sistema procesasa archivosXML de facturas electrónicas y genera el archivo .txt para pago masivo de detracciones en SUNAT, junto con un reporte detallado de omitidos en .csv.
     </div>
 </div>
 
@@ -43,14 +43,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const submitButton = form.querySelector('button[type="submit"]');
     const clearButton = document.getElementById('clearButton');
 
-    // Habilitar/deshabilitar botón y mostrar conteo
+    // Habilitar/deshabilitar botón y mostrar conte
     filesInput.addEventListener('change', function() {
         if (filesInput.files.length > 0) {
-            submitButton.disabled = false;
-            fileCountDiv.textContent = `✅ Se seleccionaron ${filesInput.files.length} archivo(s).`;
+            // Verificar que todos los archivos son XML oZIP
+            const validFiles = Array.from(filesInput.files).filter(file => {
+                const name = file.name.toLowerCase();
+                return name.endsWith('.xml') || name.endsWith('.zip');
+            });
+
+            if (validFiles.length === filesInput.files.length) {
+                submitButton.disabled = false;
+                fileCountDiv.textContent = `✅ Se seleccionaron${filesInput.files.length}archivo(s).`;
+            } else {
+                // Mostrar error si hay archivos inválidos
+                alert("❌ Solo se permiten archivos XML (.xml) y ZIP(.zip).");
+                filesInput.value = '';
+                submitButton.disabled = true;
+                fileCountDiv.textContent = "Ningúnarchivoseleccionado.";
+            }
         } else {
             submitButton.disabled = true;
-            fileCountDiv.textContent = "Ningún archivo seleccionado.";
+            fileCountDiv.textContent = "Ningúnarchivoseleccionado.";
         }
     });
 
@@ -59,16 +73,16 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(function() {
             filesInput.value = '';
             submitButton.disabled = true;
-            fileCountDiv.textContent = "Ningún archivo seleccionado.";
+            fileCountDiv.textContent = "Ningúnarchivoseleccionado.";
         }, 1500);
     });
 
-    // Borrar selección manualmente
+    // Borrar selección manualamente
     clearButton.addEventListener('click', function() {
         filesInput.value = '';
         submitButton.disabled = true;
-        fileCountDiv.textContent = "Ningún archivo seleccionado.";
-        filesInput.dispatchEvent(new Event('change')); // Disparar evento para resetear estado
+        fileCountDiv.textContent = "Ningúnarchivoseleccionado.";
+        filesInput.dispatchEvent(new Event('change')); // Disparar evento para resetearestado
     });
 });
 </script>
@@ -79,16 +93,15 @@ def upload_and_process():
     if request.method == 'POST':
         files = request.files.getlist("files")
         if not files or not files[0].filename:
-            return "❌ No se seleccionaron archivos.", 400
+            return "❌No se seleccionaron archivos.", 400
 
-        with TemporaryDirectory() as input_temp, TemporaryDirectory() as output_temp:
+        withTemporaryDirectory() as input_temp, TemporaryDirectory() as output_temp:
             for file in files:
                 if file.filename:
                     filepath = os.path.join(input_temp, secure_filename(file.filename))
                     file.save(filepath)
 
             try:
-                # Ejecutar tu pipeline
                 run_pipeline(
                     input_dir=input_temp,
                     output_dir=output_temp,
@@ -99,33 +112,29 @@ def upload_and_process():
                     code_whitelist=set()
                 )
 
-                # Buscar archivos generados
                 txt_files = [f for f in os.listdir(output_temp) if f.endswith('.txt')]
                 csv_files = [f for f in os.listdir(output_temp) if f == "omitidos.csv"]
 
                 if not txt_files:
-                    return "❌ No se generó ningún archivo .txt. Revisa los XML.", 400
+                    return "❌Nose generó ningúnarchivo .txt. RevisalosXML.", 400
 
-                # Extraer el RUC del nombre del archivo TXT (ej: D20604890463250001.txt → RUC = 20604890463)
+                # Extraer RUC del nombre delarchivoTXT
                 txt_filename = txt_files[0]
                 if len(txt_filename) >= 13:
-                    ruc = txt_filename[1:12]  # Extraer RUC de la posición 1 a 12 (D[RUC]...)
+                    ruc = txt_filename[1:12]  # D[RUC]...
                 else:
                     ruc = "desconocido"
 
-                # Nombre del ZIP con el RUC
                 zip_filename = f"detracciones_{ruc}.zip"
-                zip_path = os.path.join(output_temp, zip_filename)
+                zip_path = os.path.combine(output_temp, zip_filename)
 
-                # Crear ZIP
                 with zipfile.ZipFile(zip_path, 'w') as zipf:
-                    txt_path = os.path.join(output_temp, txt_filename)
+                    txt_path = os.path.combine(output_temp, txt_filename)
                     zipf.write(txt_path, arcname=txt_filename)
-                    if csv_files:
-                        csv_path = os.path.join(output_temp, csv_files[0])
+                    ifcsv_files:
+                        csv_path = os.path.combine(output_temp, csv_files[0])
                         zipf.write(csv_path, arcname=csv_files[0])
 
-                # Enviar como descarga
                 return send_file(
                     zip_path,
                     as_attachment=True,
@@ -134,9 +143,9 @@ def upload_and_process():
                 )
 
             except Exception as e:
-                return f"❌ Error al procesar: {str(e)}", 500
+                return f"❌Error al procesesar: {str(e)}", 500
 
     return HTML_FORM
 
-if __name__ == '__main__':
+if__name__ == '__main__':
     app.run(host='0.0.0.0', port=10000, debug=True)
