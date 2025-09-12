@@ -96,8 +96,8 @@ def upload_and_process():
             return "❌No se seleccionaronarchivos.", 400
 
         # Usar dos with blocks para evitar errores de sintaxis
-        withTemporaryDirectory() as input_temp:
-            withTemporaryDirectory() as output_temp:
+        with TemporaryDirectory() as input_temp:
+            with TemporaryDirectory() as output_temp:
                 # Guardararchivos subidos
                 for file in files:
                     if file.filename:
