@@ -88,6 +88,7 @@ def upload_and_process():
                     file.save(filepath)
 
             try:
+                # Ejecutar tu pipeline
                 run_pipeline(
                     input_dir=input_temp,
                     output_dir=output_temp,
@@ -98,22 +99,33 @@ def upload_and_process():
                     code_whitelist=set()
                 )
 
+                # Buscar archivos generados
                 txt_files = [f for f in os.listdir(output_temp) if f.endswith('.txt')]
                 csv_files = [f for f in os.listdir(output_temp) if f == "omitidos.csv"]
 
                 if not txt_files:
                     return "❌ No se generó ningún archivo .txt. Revisa los XML.", 400
 
-                zip_filename = "resultados_detracciones_sunat.zip"
+                # Extraer el RUC del nombre del archivo TXT (ej: D20604890463250001.txt → RUC = 20604890463)
+                txt_filename = txt_files[0]
+                if len(txt_filename) >= 13:
+                    ruc = txt_filename[1:12]  # Extraer RUC de la posición 1 a 12 (D[RUC]...)
+                else:
+                    ruc = "desconocido"
+
+                # Nombre del ZIP con el RUC
+                zip_filename = f"detracciones_{ruc}.zip"
                 zip_path = os.path.join(output_temp, zip_filename)
 
+                # Crear ZIP
                 with zipfile.ZipFile(zip_path, 'w') as zipf:
-                    txt_path = os.path.join(output_temp, txt_files[0])
-                    zipf.write(txt_path, arcname=txt_files[0])
+                    txt_path = os.path.join(output_temp, txt_filename)
+                    zipf.write(txt_path, arcname=txt_filename)
                     if csv_files:
                         csv_path = os.path.join(output_temp, csv_files[0])
                         zipf.write(csv_path, arcname=csv_files[0])
 
+                # Enviar como descarga
                 return send_file(
                     zip_path,
                     as_attachment=True,
