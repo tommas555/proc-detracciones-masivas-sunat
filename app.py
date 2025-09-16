@@ -22,7 +22,11 @@ HTML_FORM = '''
     <form id="uploadForm" method="post" enctype="multipart/form-data" class="mb-4">
         <div class="mb-3">
             <label for="files" class="form-label">Selecciona tus archivos XML o ZIP:</label>
-            <input class="form-control" type="file" name="files" id="files" multiple required accept=".xml,.zip" title="Solo XML y ZIP files are allowed">
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-light border" id="adjuntarBtn">Adjuntar</button>
+                <div id="fileCount" class="text-muted">Ningún archivo seleccionado.</div>
+            </div>
+            <input class="form-control" type="file" name="files" id="files" multiple required accept=".xml,.zip" title="Solo XML y ZIP" style="display: none;">
         </div>
         <div class="mb-3">
             <label for="lote" class="form-label">Número de Lote (6 dígitos, ej: 250001):</label>
@@ -43,57 +47,45 @@ HTML_FORM = '''
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('uploadForm');
     const filesInput = document.getElementById('files');
+    const adjuntarBtn = document.getElementById('adjuntarBtn');
+    const fileCountDiv = document.getElementById('fileCount');
     const submitButton = form.querySelector('button[type="submit"]');
     const clearButton = document.getElementById('clearButton');
+    const loteInput = document.getElementById('lote');
 
-    // Cambiar el texto del botón "Browse..." por "Adjuntar"
-    const fileInput = document.querySelector('input[type="file"]');
-    if (fileInput) {
-        fileInput.style.display = 'none';  // Ocultar el input original
-    }
-
-    // Crear un botón personalizado "Adjuntar"
-    const adjuntarBtn = document.createElement('button');
-    adjuntarBtn.type = 'button';
-    adjuntarBtn.className = 'btn btn-light border';
-    adjuntarBtn.textContent = 'Adjuntar';
-    adjuntarBtn.style.marginRight = '10px';
-
-    // Añadir evento al botón "Adjuntar"
+    // Abrir selector de archivos al hacer clic en "Adjuntar"
     adjuntarBtn.addEventListener('click', function() {
-        filesInput.click();  // Abrir el diálogo de selección de archivos
+        filesInput.click();
     });
 
-    // Insertar el botón personalizado antes del input original
-    const label = document.querySelector('label[for="files"]');
-    label.appendChild(adjuntarBtn);
-
-    // Habilitar/deshabilitar botón y validar lote
-    function updateSubmitButton() {
-        const loteInput = document.getElementById('lote');
+    // Actualizar contador y estado del botón "Procesar"
+    function updateUI() {
         if (filesInput.files.length > 0 && loteInput.validity.valid) {
+            fileCountDiv.textContent = `✅ Se seleccionaron ${filesInput.files.length} archivo(s).`;
             submitButton.disabled = false;
         } else {
+            fileCountDiv.textContent = "Ningún archivo seleccionado.";
             submitButton.disabled = true;
         }
     }
 
-    filesInput.addEventListener('change', updateSubmitButton);
-    document.getElementById('lote').addEventListener('input', updateSubmitButton);
+    // Eventos
+    filesInput.addEventListener('change', updateUI);
+    loteInput.addEventListener('input', updateUI);
 
-    // Resetear formulario después de enviar
+    // Resetear después de enviar
     form.addEventListener('submit', function() {
         setTimeout(function() {
             filesInput.value = '';
-            document.getElementById('lote').value = '';
-            submitButton.disabled = true;
+            loteInput.value = '';
+            updateUI(); // Resetea el mensaje y botón
         }, 1500);
     });
 
     // Borrar selección manualmente
     clearButton.addEventListener('click', function() {
         filesInput.value = '';
-        submitButton.disabled = true;
+        updateUI();
     });
 });
 </script>
@@ -113,7 +105,6 @@ def upload_and_process():
 
         with TemporaryDirectory() as input_temp:
             with TemporaryDirectory() as output_temp:
-                # Guardar archivos subidos
                 for file in files:
                     if file.filename:
                         filepath = os.path.join(input_temp, secure_filename(file.filename))
@@ -123,39 +114,30 @@ def upload_and_process():
                     run_pipeline(
                         input_dir=input_temp,
                         output_dir=output_temp,
-                        lote=lote,  # ✅ Ahora viene del formulario
+                        lote=lote,
                         min_monto=Decimal("700.00"),
                         tipo_operacion_txt="01",
                         enforce_code_whitelist=False,
                         code_whitelist=set()
                     )
 
-                    # Buscar archivos generados
                     txt_files = [f for f in os.listdir(output_temp) if f.endswith('.txt')]
                     csv_files = [f for f in os.listdir(output_temp) if f == "omitidos.csv"]
 
                     if not txt_files:
                         return "❌ No se generó ningún archivo .txt. Revisa los XML.", 400
 
-                    # Extraer RUC del nombre del archivo TXT
                     txt_filename = txt_files[0]
-                    if len(txt_filename) >= 13:
-                        ruc = txt_filename[1:12]  # D[RUC]...
-                    else:
-                        ruc = "desconocido"
+                    ruc = txt_filename[1:12] if len(txt_filename) >= 13 else "desconocido"
 
                     zip_filename = f"detracciones_{ruc}.zip"
                     zip_path = os.path.join(output_temp, zip_filename)
 
-                    # Crear ZIP
                     with zipfile.ZipFile(zip_path, 'w') as zipf:
-                        txt_path = os.path.join(output_temp, txt_filename)
-                        zipf.write(txt_path, arcname=txt_filename)
+                        zipf.write(os.path.join(output_temp, txt_filename), arcname=txt_filename)
                         if csv_files:
-                            csv_path = os.path.join(output_temp, csv_files[0])
-                            zipf.write(csv_path, arcname=csv_files[0])
+                            zipf.write(os.path.join(output_temp, csv_files[0]), arcname=csv_files[0])
 
-                    # Enviar como descarga
                     return send_file(
                         zip_path,
                         as_attachment=True,
