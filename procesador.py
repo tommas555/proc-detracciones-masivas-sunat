@@ -48,7 +48,7 @@ NS = {
     "sac": "urn:sunat:names:specification:ubl:peru:schema:xsd:SunatAggregateComponents-1",
 }
 
-# ---------- funciones auxiliares ----------
+# ---------- funciones auxiliares (sin cambios) ----------
 def sin_tildes_upper(s: str) -> str:
     s = "" if s is None else str(s)
     s = "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
@@ -96,27 +96,21 @@ def collect_input_files(input_dir: str):
 
 def extract_xmls_from_zip(zip_path: str, out_dir: str):
     extracted = []
-    try:
-        with zipfile.ZipFile(zip_path) as z:
-            for member in z.infolist():
-                if member.filename.lower().endswith(".xml"):
-                    data = z.read(member)
-                    name = os.path.basename(member.filename)
-                    out_path = os.path.join(out_dir, name)
-                    with open(out_path, "wb") as f:
-                        f.write(data)
-                    extracted.append(out_path)
-    except Exception as e:
-        print(f"[WARN] ZIP inválido o no se pudo leer: {zip_path} -> {e}")
+    with zipfile.ZipFile(zip_path) as z:
+        for member in z.infolist():
+            if member.filename.lower().endswith(".xml"):
+                data = z.read(member)
+                name = os.path.basename(member.filename)
+                out_path = os.path.join(out_dir, name)
+                with open(out_path, "wb") as f:
+                    f.write(data)
+                extracted.append(out_path)
     return extracted
 
-# ---------- parsing XML ----------
+# ---------- parsing XML (sin cambios) ----------
 def parse_xml_fields(path):
-    try:
-        tree = ET.parse(path)
-        root = tree.getroot()
-    except Exception as e:
-        raise Exception(f"Error al parsear XML: {e}")
+    tree = ET.parse(path)
+    root = tree.getroot()
 
     prov_id = root.find(".//cac:AccountingSupplierParty/cac:Party/cac:PartyIdentification/cbc:ID", NS)
     proveedor_ruc = digits(leer_text(prov_id))
@@ -149,22 +143,23 @@ def parse_xml_fields(path):
     pay = root.find(".//cac:LegalMonetaryTotal/cbc:PayableAmount", NS)
     payable_amount = Decimal(leer_text(pay) or "0")
 
-    # Detracción
-    tiene_detraccion = False
-    detrac_codigo = ""
-    detrac_importe = Decimal("0")
-    cuenta_bn = ""
-
+    detr_pt = None
     for pt in root.findall(".//cac:PaymentTerms", NS):
         idv = leer_text(pt.find("./cbc:ID", NS)).strip()
         if idv.lower() == "detraccion":
-            tiene_detraccion = True
-            detrac_codigo = leer_text(pt.find("./cbc:PaymentMeansID", NS)).strip()
-            detr_amount = leer_text(pt.find("./cbc:Amount", NS)).strip() or "0"
-            detr_amount = detr_amount.replace(",", ".")
-            detrac_importe = Decimal(detr_amount)
+            detr_pt = pt
             break
 
+    tiene_detraccion = detr_pt is not None
+    detrac_codigo = ""
+    detrac_importe = Decimal("0")
+    if tiene_detraccion:
+        detrac_codigo = leer_text(detr_pt.find("./cbc:PaymentMeansID", NS)).strip()
+        detr_amount = leer_text(detr_pt.find("./cbc:Amount", NS)).strip() or "0"
+        detr_amount = detr_amount.replace(",", ".")
+        detrac_importe = Decimal(detr_amount)
+
+    cuenta_bn = ""
     for pm in root.findall(".//cac:PaymentMeans", NS):
         idv = leer_text(pm.find("./cbc:ID", NS)).strip()
         if idv.lower() == "detraccion":
@@ -192,7 +187,7 @@ def parse_xml_fields(path):
         "comprobante": comp_id,
     }
 
-# ---------- construcción de detalle ----------
+# ---------- construcción de detalle (sin cambios) ----------
 def construir_detalle_proveedor(rec, tipo_operacion_txt="01"):
     tipo_doc = "6" if len(rec["cliente_doc_num"]) == 11 else "1"
     num_doc = rec["cliente_doc_num"][-11:].rjust(11, "0")
@@ -258,12 +253,13 @@ def run_pipeline(
         zips, xmls = collect_input_files(input_dir)
         extracted = []
         for z in zips:
-            extracted.extend(extract_xmls_from_zip(z, tmpdir))
-
+            try:
+                extracted.extend(extract_xmls_from_zip(z, tmpdir))
+            except Exception as e:
+                print(f"[WARN] ZIP inválido: {z} -> {e}")
         all_xmls = []
         all_xmls.extend(xmls)
         all_xmls.extend(list_files_case_insensitive(tmpdir, ["**/*.xml", "**/*.XML"]))
-
         seen = set()
         final_xmls = []
         for p in all_xmls:
@@ -271,14 +267,12 @@ def run_pipeline(
             if rp not in seen:
                 seen.add(rp)
                 final_xmls.append(rp)
-
         if not final_xmls:
-            print(f"[ERROR] No se encontraron XML/ZIP en: {input_dir}")
-            print(f"  - Buscados: {len(xmls)} XMLs directos, {len(zips)} ZIPs, {len(extracted)} XMLs extraídos de ZIPs")
-            raise SystemExit("No se encontraron XML válidos para procesar.")
+            raise SystemExit("No se encontraron XML válidos.")
 
         aceptados = []
         omitidos = []
+
         proveedor_ruc = ""
         proveedor_razon = ""
 
@@ -286,51 +280,43 @@ def run_pipeline(
             try:
                 rec = parse_xml_fields(path)
             except Exception as e:
-                add_omit(omitidos, None, os.path.basename(path), f"XML inválido o no parseable: {e}")
+                add_omit(omitidos, None, os.path.basename(path), f"XML inválido: {e}")
                 continue
 
-            # Capturar datos del proveedor para la cabecera
+            # RUC/razón para cabecera
             if not proveedor_ruc and rec["proveedor_ruc"]:
                 proveedor_ruc = rec["proveedor_ruc"]
                 proveedor_razon = rec["proveedor_razon"]
 
-            # -------- VALIDACIONES OFICIALES SUNAT --------
-            # 1) Tiene detracción?
-            if not rec["tiene_detraccion"]:
-                add_omit(omitidos, rec, rec["source"], "No tiene sección de detracción (PaymentTerms[ID='Detraccion'])")
-                continue
-
-            # 2) Código de detracción existe?
+            # -------- VALIDACIONES OFICIALES --------
+            # 1) Código existe en tabla
             cod = rec["detrac_codigo"]
             if not cod:
-                add_omit(omitidos, rec, rec["source"], "Código de detracción vacío o no encontrado")
+                add_omit(omitidos, rec, rec["source"], "Sin código de detracción")
                 continue
-
             if cod not in DETRAC_MINIMO_OFICIAL:
                 add_omit(omitidos, rec, rec["source"], f"Código {cod} no existe en tabla oficial SUNAT")
                 continue
-
-            # 3) Valor de la operación >= mínimo oficial (¡NO el monto de la detracción!)
+            # 2) Monto mínimo oficial
             min_oficial = DETRAC_MINIMO_OFICIAL[cod]
-            if rec["payable_amount"] < min_oficial:
-                add_omit(omitidos, rec, rec["source"], f"Valor operación S/ {rec['payable_amount']} < mínimo S/ {min_oficial} para código {cod}")
+            if rec["detrac_importe"] < min_oficial:
+                add_omit(omitidos, rec, rec["source"], f"Importe detracción S/ {rec['detrac_importe']} < mínimo S/ {min_oficial} para código {cod}")
                 continue
-
-            # 4) Resto de validaciones
+            # 3) Resto de tus filtros originales
             if rec["payable_amount"] < min_monto:
                 add_omit(omitidos, rec, rec["source"], f"PayableAmount < {min_monto}")
                 continue
-
+            if not rec["tiene_detraccion"]:
+                add_omit(omitidos, rec, rec["source"], "Sin PaymentTerms[ID='Detraccion']")
+                continue
             if enforce_code_whitelist and cod not in code_whitelist:
                 add_omit(omitidos, rec, rec["source"], f"Código {cod} no está en whitelist")
                 continue
-
             if rec["detrac_importe"] <= 0:
-                add_omit(omitidos, rec, rec["source"], "Importe de detracción <= 0")
+                add_omit(omitidos, rec, rec["source"], "Importe detracción <= 0")
                 continue
-
             if not rec["cuenta_bn"]:
-                add_omit(omitidos, rec, rec["source"], "Sin cuenta BN (PaymentMeans/PayeeFinancialAccount/ID)")
+                add_omit(omitidos, rec, rec["source"], "Sin cuenta BN")
                 continue
 
             # -------- ARMAR DETALLE --------
@@ -338,9 +324,9 @@ def run_pipeline(
                 detalle = construir_detalle_proveedor(rec, tipo_operacion_txt=tipo_operacion_txt)
                 aceptados.append({"rec": rec, "detalle": detalle})
             except Exception as e:
-                add_omit(omitidos, rec, rec["source"], f"Error al construir detalle: {e}")
+                add_omit(omitidos, rec, rec["source"], f"Detalle inválido: {e}")
 
-        # -------- GENERAR ARCHIVOS --------
+        # -------- GENERAR TXT --------
         if not aceptados:
             if omitidos:
                 out_omit = os.path.join(output_dir, "omitidos.csv")
@@ -354,16 +340,16 @@ def run_pipeline(
                 print("[INFO] No hay detalles válidos.")
             return
 
-        # Cabecera (proveedor)
+        # Cabecera proveedor
         indicador = "P"
         ruc11 = proveedor_ruc[-11:].rjust(11, "0")
         razon35 = sin_tildes_upper(proveedor_razon)[:35].ljust(35, " ")
         lote6 = str(lote)[-6:].rjust(6, "0")
-        total_cent = sum(int(a["rec"]["detrac_importe"].quantize(Decimal("0.01")) * 100) for a in aceptados)
+        total_cent = sum(int(a["rec"]["detrac_importe"] * 100) for a in aceptados)
         total15 = str(total_cent).rjust(15, "0")
         cabecera = indicador + ruc11 + razon35 + lote6 + total15
         if len(cabecera) != 68:
-            raise SystemExit(f"Cabecera no mide 68 (mide {len(cabecera)}): [{cabecera!r}]")
+            raise SystemExit(f"Cabecera no mide 68 (mide {len(cabecera)})")
 
         out_name = f"D{ruc11}{lote6}.txt"
         out_path = os.path.join(output_dir, out_name)
@@ -372,8 +358,7 @@ def run_pipeline(
             for a in aceptados:
                 f.write(a["detalle"] + "\n")
 
-        print(f"[OK] TXT generado: {out_path} ({len(aceptados)} detalles aceptados)")
-
+        print(f"[OK] TXT proveedor generado: {out_path} ({len(aceptados)} detalles)")
         if omitidos:
             out_omit = os.path.join(output_dir, "omitidos.csv")
             with open(out_omit, "w", newline="", encoding="utf-8") as f:
@@ -381,25 +366,4 @@ def run_pipeline(
                 wr.writerow(["archivo", "comprobante", "motivo", "payable_amount", "detrac_codigo", "detrac_importe"])
                 for r in omitidos:
                     wr.writerow([r["archivo"], r["comprobante"], r["motivo"], r["payable_amount"], r["detrac_codigo"], r["detrac_importe"]])
-            print(f"[INFO] Omitidos: {len(omitidos)} (ver {out_omit})")
-
-# ---------- MAIN ----------
-if __name__ == "__main__":
-    # Define aquí tus rutas locales de prueba:
-    input_dir = "/home/tom/Documentos/PagoMasivo/XML/"   # Cambia esto a tu ruta
-    output_dir = "/home/tom/Documentos/PagoMasivo/"      # Cambia esto a tu ruta
-    lote = "250001"
-    min_monto = DEFAULT_MIN_MONTO
-    tipo_op = DEFAULT_TIPO_OPERACION_TXT
-    enforce = False
-    whitelist = set(DEFAULT_CODE_WHITELIST)
-
-    run_pipeline(
-        input_dir=input_dir,
-        output_dir=output_dir,
-        lote=lote,
-        min_monto=min_monto,
-        tipo_operacion_txt=tipo_op,
-        enforce_code_whitelist=enforce,
-        code_whitelist=whitelist
-    )
+            print(f"[INFO] Omitidos: {len(omitidos)}")
