@@ -1,0 +1,137 @@
+{% extends "_base.html" %}
+
+{% block title %}Activar plan Pro{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 720px">
+  <div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <h4 class="mb-0">Activar plan Pro</h4>
+    </div>
+    <div class="card-body p-4">
+
+      <!-- Progress bar (2 pasos) -->
+      <div class="progress mb-4" style="height: 8px">
+        <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+      </div>
+
+      <!-- Step 1: Verify e-mail (código 4 dígitos) -->
+      <div class="step-item mb-4" data-step="1">
+        <div class="d-flex align-items-center mb-2">
+          <span class="step-badge bg-secondary text-white rounded-circle me-3">1</span>
+          <span class="fw-semibold">Verificar correo electrónico</span>
+          <span id="chip-1" class="badge ms-auto d-none"></span>
+        </div>
+        <p class="text-muted small mb-2">Te hemos enviado un código de 4 dígitos.</p>
+
+        <!-- 4 inputs numéricos -->
+        <div class="d-flex gap-2 mb-2" id="codeInputs">
+          {% for i in range(4) %}
+            <input type="text" maxlength="1" class="form-control text-center code-digit" style="width: 42px">
+          {% endfor %}
+        </div>
+
+        <button id="btn-verify" class="btn btn-sm btn-primary disabled">Verificar</button>
+        <button id="btn-resend" class="btn btn-sm btn-link">Re-enviar código</button>
+      </div>
+
+      <!-- Step 2: Estado de la solicitud (sin subir archivo) -->
+      <div class="step-item mb-4" data-step="2">
+        <div class="d-flex align-items-center mb-2">
+          <span class="step-badge bg-secondary text-white rounded-circle me-3">2</span>
+          <span class="fw-semibold">Estado de la solicitud</span>
+          <span id="chip-2" class="badge ms-auto d-none"></span>
+        </div>
+        <div id="statusBox" class="small text-muted">Esperando verificación…</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // Backend data injected into JS
+const stepData = {
+  1: { done: {{ 'true' if current_user.is_email_verified else 'false' }} },
+  2: { status: "{{ current_user.account_status or 'TRIAL_ACTIVO' }}" }
+};
+
+  const labels = {
+    1: { pending: 'Pendiente', ok: 'Verificado' },
+    2: {
+      PENDIENTE_REVISION: 'En revisión',
+      TRIAL_ACTIVO: 'Activo',
+      TRIAL_VENCIDO: 'Vencido',
+      APROBADO: 'Aprobado'
+    }
+  };
+
+  // ----------  CÓDIGO 4 DÍGITOS  ----------
+  const codeInputs = document.querySelectorAll('.code-digit');
+  const btnVerify  = document.getElementById('btn-verify');
+  const btnResend  = document.getElementById('btn-resend');
+
+  // auto-salto al siguiente input
+  codeInputs.forEach((inp, idx) => {
+    inp.addEventListener('input', e => {
+      if (e.target.value.length === 1 && idx < 3) codeInputs[idx + 1].focus();
+      checkComplete();
+    });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && idx > 0 && !e.target.value) {
+        codeInputs[idx - 1].focus();
+      }
+    });
+  });
+
+  function checkComplete() {
+    const full = [...codeInputs].every(i => i.value !== '');
+    btnVerify.disabled = !full;
+  }
+
+  // verificar código
+  btnVerify.addEventListener('click', async () => {
+    const code = [...codeInputs].map(i => i.value).join('');
+    const res  = await fetch("{{ url_for('auth.verify_code') }}", {
+      method : 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body   : JSON.stringify({code})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      alert(data.msg);
+      stepData[1].done = true;
+      refreshUI();
+    } else {
+      alert(data.msg);
+    }
+  });
+
+  // re-enviar código
+  btnResend.addEventListener('click', async () => {
+    await fetch("{{ url_for('auth.resend_verification') }}", {method:'POST'});
+    alert('Código re-enviado ✅ (mira tu bandeja)');
+  });
+
+  function refreshUI() {
+    let completed = 0;
+    [1,2].forEach(n => {
+      const ok = stepData[n].done || stepData[n].status !== 'TRIAL_ACTIVO';
+      const badge = document.getElementById('chip-' + n);
+      if (ok) {
+        badge.textContent = labels[n].ok || labels[n][stepData[n].status];
+        badge.className = 'badge ms-auto bg-success';
+        completed++;
+      } else {
+        badge.textContent = labels[n].pending || labels[n][stepData[n].status];
+        badge.className = 'badge ms-auto bg-warning text-dark';
+      }
+    });
+    // Barra de progreso (2 pasos)
+    document.getElementById('progressBar').style.width = (completed / 2 * 100) + '%';
+  }
+
+  // Pintar estado inicial
+  refreshUI();
+</script>
+{% endblock %}

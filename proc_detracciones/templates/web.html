@@ -1,0 +1,344 @@
+{% extends "_base.html" %}
+
+{% block content %}
+  {% include "_trial_banner.html" %}
+  
+
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Procesador de XML/ZIP a TXT Detracciones</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f6f8fb; }
+    .navbar { background: #0d6efd; }
+    .navbar .navbar-brand{ color:#fff; }
+    .nav-user-label { color:#cfe1ff; font-weight:500; }
+    .nav-user-email { color:#fff; font-weight:600; }
+    
+    
+    .user-badge { color:#cfe1ff; font-weight:500; }
+    .user-badge { color:#fff; font-weight:600; }
+
+
+    .btn-logout {
+      color:#ffffff; border-color:#ffffffcc;
+      background: transparent;
+    }
+    .btn-logout:hover {
+      color:#ffffff; background:#fa1d1dc7; border-color:#ffffffee;
+    }
+    .btn-logout:active { background:#ffffff33; }
+    .app-card { max-width: 980px; margin: 40px auto; }
+    .dz {
+      border: 2px dashed #b6c3d3; border-radius: 12px; background:#fff;
+      padding: 28px; text-align:center; transition: .2s ease-in-out;
+    }
+
+    
+    .dz:hover { border-color:#0d6efd33; box-shadow: 0 0 0 4px #0d6efd0f; }
+    .dz.dragover { border-color:#0d6efd; background:#f0f6ff; }
+    .file-pills .badge { font-weight: 500; }
+    .count-badges .badge { margin-right:.25rem; }
+
+
+      
+
+
+
+
+  .count-badges .badge {
+  font-size: 0.83rem;           /* Tamaño de fuente más grande */
+  padding: 0.6rem 1rem;       /* Espaciado interno más amplio */
+  border-radius: 24px;         /* Bordes redondeados más suaves */
+  min-width: 90px;             /* Ancho mínimo para que no se vea pequeño */
+  margin-right: 0.75rem;       /* Espacio entre badges */
+}
+
+/* Opcional: Hacerlos más prominentes */
+.count-badges .badge.text-bg-success {
+  background-color: #12c123 !important;
+  color: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.count-badges .badge.text-bg-secondary {
+  background-color: #6c757d !important;
+  color: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+  </style>
+</head>
+
+<body>
+
+<!-- Navbar -->
+<!-- <nav class="navbar">
+  <div class="container d-flex align-items-center gap-3">
+    <a class="navbar-brand fw-semibold" href="/">Detracciones SUNAT</a>
+    <div class="ms-auto d-flex align-items-center gap-3">
+      <div class="d-none d-md-block">
+        <span class="nav-user-label me-1">Usuario:</span>
+        <span class="user-badge">
+  {{ current_user.username or current_user.email or 'usuario' }}
+</span>
+
+      </div>
+      <form method="post" action="{{ url_for('auth.logout') }}" class="m-0">
+        <button type="submit" class="btn btn-sm btn-logout">Cerrar sesión</button>
+      </form>
+    </div>
+  </div>
+</nav> -->
+
+<!-- Contenido -->
+<div class="container app-card">
+  <div class="card shadow-sm border-0">
+    <div class="card-body p-4 p-md-5">
+      <h1 class="h3 mb-4 fw-semibold">Procesador de XML/ZIP a TXT de Detracciones</h1>
+
+      {% if trial_expires_local %}
+  <div class="alert alert-warning d-flex align-items-center justify-content-between" role="alert">
+    <div>⏳ <strong>Prueba activa</strong> — vence: <strong>{{ trial_expires_local }}</strong></div>
+  </div>
+{% endif %}
+
+
+      <!-- Mensajes del servidor -->
+      <div id="serverMsg" class="alert d-none" role="alert"></div>
+
+      <!-- Form principal: descarga por iframe -->
+      <form id="uploadForm" method="post" enctype="multipart/form-data" target="downloadFrame" class="vstack gap-4">
+        <input type="hidden" name="download_token" id="download_token" value="">
+
+        <!-- Tipo de depositante -->
+        <div>
+          <label class="form-label fw-semibold">Tipo de depositante</label><br>
+          <div class="btn-group" role="group" aria-label="Tipo depositante">
+            <input type="radio" class="btn-check" name="tipo_depositante" id="td_adq" autocomplete="off" value="adquiriente">
+            <label class="btn btn-outline-primary" for="td_adq">Adquiriente</label>
+
+            <input type="radio" class="btn-check" name="tipo_depositante" id="td_prov" autocomplete="off" value="proveedor" checked>
+            <label class="btn btn-outline-primary" for="td_prov">Proveedor</label>
+          </div>
+        </div>
+
+        <!-- Dropzone + input real oculto -->
+        <div>
+          <label class="form-label fw-semibold">Archivos XML o ZIP</label>
+          <div id="dropzone" class="dz">
+            <div class="h5 mb-1">Arrastra y suelta aquí</div>
+            <div class="text-muted">o <button type="button" class="btn btn-link p-0 align-baseline" id="adjuntarBtn">adjunta desde tu equipo</button></div>
+            <div class="small mt-3" id="fileCount">Ningún archivo seleccionado</div>
+          </div>
+          <input type="file" name="files" id="files" multiple accept=".xml,.zip" hidden>
+          <div id="fileList" class="file-pills mt-3 d-flex flex-wrap gap-2"></div>
+        </div>
+
+        <!-- Lote -->
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="lote" class="form-label fw-semibold">Número de Lote</label>
+            <input class="form-control" type="text" name="lote" id="lote" required pattern="[0-9]{6}" placeholder="Ej: 250001">
+            <div class="form-text">Formato: AANNNN (Año + número secuencial).</div>
+          </div>
+        </div>
+
+        <!-- Botones -->
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary" id="submitButton" disabled>
+            Procesar y Descargar Resultados (TXT + CSV)
+          </button>
+          <button type="button" class="btn btn-danger" id="clearButton" disabled>
+            Borrar selección
+          </button>
+        </div>
+
+        <!-- Nota -->
+        <div class="alert alert-info mt-2 mb-0">
+          <strong>Nota:</strong> Este sistema procesa archivos XML de facturas electrónicas y genera el archivo .txt para pago masivo de detracciones en SUNAT, junto con un reporte de omitidos (.csv) dentro de un .zip.
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Iframe “invisible” para la descarga sin navegar la página -->
+<iframe name="downloadFrame" id="downloadFrame" style="display:none;"></iframe>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('uploadForm');
+  const filesInput = document.getElementById('files');
+  const dz = document.getElementById('dropzone');
+  const adjuntarBtn = document.getElementById('adjuntarBtn');
+  const fileCountDiv = document.getElementById('fileCount');
+  const fileListDiv = document.getElementById('fileList');
+  const submitButton = document.getElementById('submitButton');
+  const clearButton = document.getElementById('clearButton');
+  const loteInput = document.getElementById('lote');
+  const serverMsg = document.getElementById('serverMsg');
+  const iframe = document.getElementById('downloadFrame');  // ⚠️ se declara UNA sola vez
+  const tokenInput = document.getElementById('download_token');
+
+  // Límite (debe coincidir con MAX_CONTENT_LENGTH del server)
+  const MAX_MB = 50;
+  const DOWNLOAD_COOKIE_NAME = 'fileDownloadToken';
+  const AUTO_RELOAD_AFTER_SUCCESS_MS = 1200;
+  const WATCH_TIMEOUT_MS = 60000;
+
+  // Carrito de archivos acumulados
+  let picked = [];
+  const sig = f => `${f.name}#${f.size}#${f.lastModified}`;
+  const totalBytes = () => picked.reduce((a,f)=>a+f.size,0);
+  const fmtMB = b => (b/1024/1024).toFixed(1) + ' MB';
+
+  function showMsg(text, type) {
+    serverMsg.className = 'alert alert-' + type;
+    serverMsg.textContent = text;
+    serverMsg.classList.remove('d-none');
+  }
+  function clearMsg() { serverMsg.className = 'alert d-none'; serverMsg.textContent = ''; }
+
+  function addFiles(fileList) {
+    const seen = new Set(picked.map(sig));
+    for (const f of fileList) {
+      if (!/\.((xml)|(zip))$/i.test(f.name)) continue;
+      const key = sig(f);
+      if (!seen.has(key)) { picked.push(f); seen.add(key); }
+    }
+    updateUI();
+  }
+
+  function renderFileList() {
+    if (!picked.length) {
+      fileListDiv.innerHTML = '';
+      fileCountDiv.innerHTML = '<span class="text-muted">Ningún archivo seleccionado</span>';
+      return;
+    }
+    fileCountDiv.innerHTML =
+      `<span class="count-badges">
+         <span class="badge rounded-pill text-bg-success">${picked.length} archivo(s)</span>
+         <!-- <span class="badge rounded-pill text-bg-secondary">${fmtMB(totalBytes())}</span> -->
+       </span>`;
+    let html = '';
+    for (let i = 0; i < picked.length; i++) {
+      html += `<span class="badge text-bg-light border">${picked[i].name}</span> `;
+    }
+    fileListDiv.innerHTML = html;
+  }
+
+  function updateUI() {
+    renderFileList();
+    const over = totalBytes() > MAX_MB * 1024 * 1024;
+    const hasFiles = picked.length > 0;
+    const validLote = loteInput.validity.valid;
+
+    submitButton.disabled = !(hasFiles && validLote && !over);
+    clearButton.disabled  = !hasFiles;
+
+    if (over) {
+      showMsg(`El total (${fmtMB(totalBytes())}) supera el límite de ${MAX_MB} MB.`, 'warning');
+    } else if (serverMsg.classList.contains('alert-warning')) {
+      clearMsg();
+    }
+  }
+
+  // Abrir selector (arreglado)
+  adjuntarBtn.addEventListener('click', () => filesInput.click());
+
+  // Input de archivos (acumula)
+  filesInput.addEventListener('change', (e) => {
+    addFiles(e.target.files);
+    e.target.value = ''; // permite volver a elegir los mismos
+  });
+
+  // Drag & drop
+  ['dragenter','dragover'].forEach(evt => {
+    dz.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); dz.classList.add('dragover'); });
+  });
+  ['dragleave','drop'].forEach(evt => {
+    dz.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); dz.classList.remove('dragover'); });
+  });
+  dz.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
+
+  // Borrar selección (destacado)
+  clearButton.addEventListener('click', function () {
+    picked = [];
+    filesInput.value = '';
+    loteInput.value  = '';
+    clearMsg();
+    updateUI();
+  });
+
+  // Validación inicial
+  loteInput.addEventListener('input', updateUI);
+  updateUI();
+
+  // ---- Descarga por token/cookie ----
+  function getCookie(name) {
+    const v = ('; ' + document.cookie).split('; ' + name + '=');
+    if (v.length === 2) return v.pop().split(';').shift();
+    return null;
+  }
+  function deleteCookie(name) { document.cookie = name + '=; Max-Age=0; path=/'; }
+
+  function watchDownloadToken(token) {
+    const start = Date.now();
+    const intv = setInterval(() => {
+      const cookie = getCookie(DOWNLOAD_COOKIE_NAME);
+      if (cookie === token) {
+        clearInterval(intv);
+        deleteCookie(DOWNLOAD_COOKIE_NAME);
+        showMsg('✅ Archivo generado y descargado correctamente.', 'success');
+        picked = []; loteInput.value = '';
+        updateUI();
+        submitButton.disabled = false;
+        submitButton.textContent = 'Procesar y Descargar Resultados (TXT + CSV)';
+        if (AUTO_RELOAD_AFTER_SUCCESS_MS > 0) setTimeout(() => window.location.reload(), AUTO_RELOAD_AFTER_SUCCESS_MS);
+      } else if (Date.now() - start > WATCH_TIMEOUT_MS) {
+        clearInterval(intv);
+        showMsg('⚠️ No se detectó la descarga. Revisa bloqueadores o reintenta.', 'warning');
+        submitButton.disabled = false;
+        submitButton.textContent = 'Procesar y Descargar Resultados (TXT + CSV)';
+      }
+    }, 400);
+  }
+
+  // Captura errores HTML del iframe (sin redeclarar 'iframe')
+  iframe.onload = function() {
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      const bodyText = (doc && doc.body) ? doc.body.textContent.trim() : '';
+      if (bodyText) {
+        showMsg(bodyText, 'danger');
+        submitButton.disabled = false;
+        submitButton.textContent = 'Procesar y Descargar Resultados (TXT + CSV)';
+      }
+    } catch (e) {}
+  };
+
+  // Envío: vuelca el carrito al input real
+  form.addEventListener('submit', function() {
+    clearMsg();
+    const dt = new DataTransfer();
+    picked.forEach(f => dt.items.add(f));
+    filesInput.files = dt.files;
+
+    const token = Math.random().toString(36).slice(2);
+    tokenInput.value = token;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Procesando...';
+    watchDownloadToken(token);
+  });
+});
+</script>
+
+</body>
+</html>
+
+{% endblock %}
+

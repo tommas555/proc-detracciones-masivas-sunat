@@ -1,0 +1,17 @@
+{% if current_user.is_authenticated %}
+  {% set status = (current_user.account_status or 'TRIAL_ACTIVO') %}
+  {% if status == 'TRIAL_ACTIVO' %}
+    <div class="alert alert-warning d-flex justify-content-center align-items-center text-center">
+  <div><strong>Estás en versión de prueba.</strong> Algunas funciones tienen límites.</div>
+</div>
+  {% elif status == 'PENDIENTE_REVISION' %}
+    <div class="alert alert-info">
+      <strong>Tu pago está en revisión.</strong> Te avisaremos cuando se active el plan Pro.
+    </div>
+  {% elif status == 'TRIAL_VENCIDO' %}
+    <div class="alert alert-danger d-flex justify-content-between align-items-center">
+      <div><strong>Tu período de prueba venció.</strong> No podrás procesar hasta activar Pro.</div>
+      <a class="btn btn-sm btn-light" href="{{ url_for('auth.upgrade') }}">Activar Pro</a>
+    </div>
+  {% endif %}
+{% endif %}

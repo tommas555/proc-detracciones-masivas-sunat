@@ -1,0 +1,26 @@
+{% extends "_base.html" %}
+{% block title %}Editar perfil{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width: 540px">
+  <div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Completar datos de perfil</h5>
+    </div>
+    <div class="card-body">
+      <form method="post">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+          {{ form.first_name.label(class="form-label") }}
+          {{ form.first_name(class="form-control", placeholder="Tu nombre") }}
+        </div>
+        <div class="mb-3">
+          {{ form.last_name.label(class="form-label") }}
+          {{ form.last_name(class="form-control", placeholder="Tu apellido") }}
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar y continuar</button>
+        <a href="{{ url_for('auth.upgrade') }}" class="btn btn-link">Cancelar</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

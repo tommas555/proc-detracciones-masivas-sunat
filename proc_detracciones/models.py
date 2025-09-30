@@ -40,7 +40,6 @@ class User(db.Model, UserMixin):
     runs_quota = db.Column(db.Integer, nullable=False, default=2)
     runs_used = db.Column(db.Integer, nullable=False, default=0)
 
-    # === NUEVOS CAMPOS: Verificación de email, nombres y gestión de cuenta ===
     # Verificación de email
     is_email_verified = db.Column(db.Boolean, default=False, nullable=False)
     email_verified_at = db.Column(db.DateTime(timezone=True), nullable=True)
@@ -56,7 +55,7 @@ class User(db.Model, UserMixin):
     payment_reviewed_at = db.Column(db.DateTime(timezone=True), nullable=True)
     payment_reviewed_by_admin_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
 
-    # Relación para el admin que revisó (opcional, pero útil)
+    # Relación para el admin que revisó
     reviewed_by_admin = db.relationship("User", remote_side=[id], backref="reviewed_users", uselist=False)
 
     # Auditoría
@@ -67,7 +66,6 @@ class User(db.Model, UserMixin):
         self.password_hash = generate_password_hash(pw)
 
     def check_password(self, pw: str) -> bool:
-        # Si no tiene password (cuenta creada por invitación/magic link), no valida por password
         if not self.password_hash:
             return False
         return check_password_hash(self.password_hash, pw)
@@ -82,19 +80,26 @@ class User(db.Model, UserMixin):
 
 
 class AuthToken(db.Model):
+    """
+    Token unificado para:
+    - Magic links (usa token_hash)
+    - Códigos de verificación de email (usa code de 4 dígitos)
+    """
     __tablename__ = "auth_token"
 
     id = db.Column(db.Integer, primary_key=True)
 
-    # Si es invitación previa a crear usuario real, podría ser NULL (pero en tu flujo lo asociamos al crear)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     user = db.relationship("User", backref="auth_tokens")
 
-    # "magic_login" o "invite_trial"
+    # "magic_login", "invite_trial", "verify_email"
     purpose = db.Column(db.String(20), nullable=False)
 
-    # Guardamos solo el hash del token
+    # Para magic links: guardamos el hash del token
     token_hash = db.Column(db.String(128), unique=True, nullable=False, index=True)
+
+    # NUEVO: Para verificación por código de 4 dígitos
+    code = db.Column(db.String(4), nullable=True, index=True)
 
     # Fechas timezone-aware
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
