@@ -1,0 +1,128 @@
+{% extends "_base.html" %} {% block title %}Gestion de Planes{% endblock %} {%
+block content %}
+<style>
+  /* Sobreescribir el contenedor principal solo para esta página */
+  body > .container {
+    max-width: none !important;
+    width: 100% !important;
+    /* Hacer que el contenedor ocupe toda la altura disponible */
+    min-height: calc(100vh - 100px); /* Ajustar según la altura de tu navbar */
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Hacer que el contenido principal ocupe el espacio restante */
+  .container > *:not(.table-responsive) {
+    flex-shrink: 0; /* No encoger estos elementos */
+  }
+
+  /* Hacer que el contenedor de la tabla ocupe todo el espacio restante */
+  .table-responsive {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0; /* Importante para que funcione con flexbox */
+  }
+
+  /* Mantener la estructura normal de la tabla */
+  .table {
+    margin-bottom: 0;
+  }
+</style>
+
+<div
+  class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom"
+>
+  <h1 class="h2">Gestion de Planes</h1>
+  <div class="btn-toolbar mb-2 mb-md-0">
+    <a href="{{ url_for('admin.plan_create') }}" class="btn btn-sm btn-primary">
+      <i class="bi bi-plus-circle"></i> Crear Nuevo Plan
+    </a>
+  </div>
+</div>
+
+<div class="table-responsive shadow-sm">
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Nombre</th>
+        <th>Slug</th>
+        <th>Precio</th>
+        <th>Servicios</th>
+        <th>Estado</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for plan in plans %}
+      <tr>
+        <td><strong>{{ plan.name }}</strong></td>
+        <td><code>{{ plan.slug }}</code></td>
+        <td>S/. {{ (plan.price_monthly / 100)|int }}</td>
+        <td>
+          {% for quota in plan.service_quotas %}
+          <span class="badge bg-secondary">{{ quota.service.name }}</span>
+          {% endfor %}
+        </td>
+        <td>
+          {% if plan.is_active %}
+          <span class="badge bg-success">Activo</span>
+          {% else %}
+          <span class="badge bg-secondary">Inactivo</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="dropdown">
+            <button
+              class="btn btn-sm btn-secondary dropdown-toggle"
+              type="button"
+              id="actionsDropdown{{ plan.id }}"
+              data-bs-toggle="dropdown"
+              aria-expanded="false"
+            >
+              Acciones
+            </button>
+            <ul
+              class="dropdown-menu"
+              aria-labelledby="actionsDropdown{{ plan.id }}"
+            >
+              <li>
+                <a
+                  class="dropdown-item"
+                  href="{{ url_for('admin.plan_edit', plan_id=plan.id) }}"
+                >
+                  <i class="bi bi-pencil"></i> Editar
+                </a>
+              </li>
+              <li><hr class="dropdown-divider" /></li>
+              <li>
+                <form
+                  method="post"
+                  action="{{ url_for('admin.plan_delete', plan_id=plan.id) }}"
+                  style="display: inline"
+                >
+                  <button
+                    type="submit"
+                    class="dropdown-item text-danger"
+                    onclick='return confirm("¿Estas seguro de que quieres eliminar este plan?");'
+                  >
+                    <i class="bi bi-trash"></i> Eliminar
+                  </button>
+                </form>
+              </li>
+            </ul>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not plans %}
+<div class="alert alert-info text-center" role="alert">
+  <i class="bi bi-info-circle"></i> No hay planes creados.
+  <a href="{{ url_for('admin.plan_create') }}" class="btn btn-primary ms-2"
+    >Crear el primer plan</a
+  >
+</div>
+{% endif %} {% endblock %}

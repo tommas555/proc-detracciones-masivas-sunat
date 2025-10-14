@@ -1,66 +1,334 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-<head>
-  <meta charset="utf-8">
-  <title>{% block title %}App{% endblock %}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    /* Sticky top bar */
-    .navbar-sticky { position: sticky; top: 0; z-index: 1020; }
-    body { padding-top: 0; } /* reset */
-  </style>
-  {% block extra_css %}{% endblock %}
-</head>
-<body class="bg-light">
+  <head>
+    <meta charset="utf-8" />
+    <title>{% block title %}App{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      .navbar-sticky {
+        position: sticky;
+        top: 0;
+        z-index: 1020;
+      }
+      body {
+        padding-top: 0;
+      }
 
-<!--  ALWAYS-VISIBLE TOP BAR  -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary navbar-sticky shadow-sm">
-  <div class="container d-flex align-items-center gap-3">
-    <a class="navbar-brand fw-semibold" href="{{ url_for('web.form') }}">Procesador Detracciones</a>
+      .user-avatar {
+        width: 36px;
+        height: 36px;
+        background: white;
+        color: #0d6efd;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+      }
 
-    <!-- User info + buttons -->
-    <div class="ms-auto d-flex align-items-center gap-3">
-      {% if current_user.is_authenticated %}
-        <div class="d-none d-md-block text-white">
-          <span class="small opacity-75 me-1">Usuario:</span>
-          <span class="fw-600">{{ current_user.username or current_user.email or 'usuario' }}</span>
+      .dropdown-menu {
+        border: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-radius: 0.5rem;
+        padding: 0.5rem;
+        min-width: 220px;
+      }
+
+      .dropdown-item {
+        border-radius: 0.375rem;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9375rem;
+      }
+
+      .dropdown-item:hover {
+        background: #f8f9fa;
+      }
+
+      .dropdown-item-text {
+        padding: 0.5rem 0.75rem;
+      }
+
+      .btn-pro {
+        background: linear-gradient(135deg, #ffd93d 0%, #f9ca24 100%);
+        border: 2px solid #f9ca24;
+        color: #000;
+        font-weight: 600;
+        transition: all 0.2s;
+      }
+
+      .btn-pro:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(249, 202, 36, 0.4);
+        color: #000;
+      }
+
+      .breadcrumb-inline {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.875rem;
+      }
+
+      .breadcrumb-inline a {
+        color: white;
+        text-decoration: none;
+        transition: opacity 0.2s;
+      }
+
+      .breadcrumb-inline a:hover {
+        opacity: 0.8;
+      }
+
+      .breadcrumb-inline .separator {
+        margin: 0 0.5rem;
+        opacity: 0.5;
+      }
+    </style>
+    {% block extra_css %}{% endblock %}
+  </head>
+  <body class="bg-light">
+    <nav
+      class="navbar navbar-expand-lg navbar-dark bg-primary navbar-sticky shadow-sm"
+    >
+      <div class="container">
+        <a
+          class="navbar-brand fw-semibold"
+          href="{{ url_for('home.index') if current_user.is_authenticated else url_for('auth.login') }}"
+        >
+          Soluciones Contables
+        </a>
+
+        {% if current_user.is_authenticated %}
+        <div class="breadcrumb-inline d-none d-lg-flex align-items-center ms-3">
+          <a href="{{ url_for('home.index') }}">Inicio</a>
+          {% block breadcrumb_inline %}{% endblock %}
         </div>
-
-        {% set status = (current_user.account_status or 'TRIAL_ACTIVO') %}
-        {% if status in ['TRIAL_ACTIVO', 'PENDIENTE_REVISION', 'TRIAL_VENCIDO'] %}
-          <a class="btn btn-sm fw-bold text-dark px-3"
-   style="background:#f8d859fc; border-color:#ffc107;"
-   onmouseover="this.style.background='#ffcd00'"
-   onmouseout="this.style.background='#ffd93d'"
-   href="{{ url_for('auth.upgrade') }}">
-  Actualizar a pago
-</a>
         {% endif %}
 
-        <form method="post" action="{{ url_for('auth.logout') }}" class="m-0">
-          <button class="btn btn-sm btn-outline-light">Cerrar sesión</button>
-        </form>
-      {% else %}
-        <a class="btn btn-outline-light btn-sm" href="{{ url_for('auth.login') }}">Ingresar</a>
-        <a class="btn btn-light btn-sm" href="{{ url_for('auth.register_get') }}">Crear cuenta</a>
-      {% endif %}
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav me-auto"></ul>
+
+          <div class="d-flex align-items-center gap-3">
+            {% if current_user.is_authenticated %} {% set status =
+            (current_user.account_status or 'TRIAL_ACTIVO') %} {% if status in
+            ['TRIAL_ACTIVO', 'PENDIENTE_REVISION', 'TRIAL_VENCIDO'] %} {% if
+            request.endpoint != 'auth.upgrade' %}
+            <a class="btn btn-sm btn-pro" href="{{ url_for('auth.upgrade') }}">
+              Activar PRO
+            </a>
+            {% endif %} {% endif %}
+
+            <div class="dropdown">
+              <button
+                class="btn btn-link text-white dropdown-toggle text-decoration-none p-0 d-flex align-items-center gap-2"
+                type="button"
+                data-bs-toggle="dropdown"
+              >
+                <div class="user-avatar">
+                  {% if current_user.first_name and current_user.last_name %} {{
+                  current_user.first_name[0]|upper }}{{
+                  current_user.last_name[0]|upper }} {% elif
+                  current_user.username %} {{ current_user.username[:2]|upper }}
+                  {% elif current_user.email %} {{ current_user.email[0]|upper
+                  }} {% else %} U {% endif %}
+                </div>
+                <span class="d-none d-md-inline fw-500">
+                  {% if current_user.first_name %} {{ current_user.first_name }}
+                  {% if current_user.role == 'admin' %}
+                  <span class="badge bg-warning text-dark ms-1">ADMIN</span>
+                  {% endif %} {% elif current_user.username %} {{
+                  current_user.username }} {% elif current_user.email %} {{
+                  current_user.email.split('@')[0] }} {% else %} Usuario {%
+                  endif %}
+                </span>
+              </button>
+
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                  <span class="dropdown-item-text small text-muted">
+                    {{ current_user.email or 'Usuario trial' }}
+                  </span>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a class="dropdown-item" href="{{ url_for('auth.profile') }}">
+                    <svg
+                      width="16"
+                      height="16"
+                      fill="currentColor"
+                      class="me-2"
+                    >
+                      <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" />
+                      <path
+                        fill-rule="evenodd"
+                        d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"
+                      />
+                    </svg>
+                    Mi perfil
+                  </a>
+                </li>
+                {% if current_user.role == 'admin' %}
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('admin.users_list') }}"
+                  >
+                    Gestión de usuarios
+                  </a>
+                </li>
+
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('admin.plans_list') }}"
+                  >
+                    Gestión de Planes
+                  </a>
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="{{ url_for('admin.magic_links_list') }}"
+                  >
+                    Magic Links
+                  </a>
+                </li>
+
+                {% endif %}
+
+                <li>
+                  <a class="dropdown-item" href="{{ url_for('auth.upgrade') }}">
+                    <svg
+                      width="16"
+                      height="16"
+                      fill="currentColor"
+                      viewBox="0 0 16 16"
+                      class="me-2"
+                    >
+                      <path
+                        d="M8.5 5.5a.5.5 0 0 0-1 0v3.362l-1.429 2.38a.5.5 0 1 0 .858.515l1.5-2.5A.5.5 0 0 0 8.5 9V5.5z"
+                      />
+                      <path
+                        d="M6.5 0a.5.5 0 0 0 0 1H7v1.07a7.001 7.001 0 0 0-3.273 12.474l-.602.602a.5.5 0 0 0 .707.708l.746-.746A6.97 6.97 0 0 0 8 16a6.97 6.97 0 0 0 3.422-.892l.746.746a.5.5 0 0 0 .707-.708l-.601-.602A7.001 7.001 0 0 0 9 2.07V1h.5a.5.5 0 0 0 0-1h-3zm1.038 3.018a6.093 6.093 0 0 1 .924 0 6 6 0 1 1-.924 0zM0 3.5c0 .753.333 1.429.86 1.887A8.035 8.035 0 0 1 4.387 1.86 2.5 2.5 0 0 0 0 3.5zM13.5 1c-.753 0-1.429.333-1.887.86a8.035 8.035 0 0 1 3.527 3.527A2.5 2.5 0 0 0 13.5 1z"
+                      />
+                    </svg>
+                    Plan actual
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <form
+                    method="post"
+                    action="{{ url_for('auth.logout') }}"
+                    class="m-0"
+                  >
+                    <button class="dropdown-item text-danger" type="submit">
+                      <svg
+                        width="16"
+                        height="16"
+                        fill="currentColor"
+                        viewBox="0 0 16 16"
+                        class="me-2"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"
+                        />
+                        <path
+                          fill-rule="evenodd"
+                          d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"
+                        />
+                      </svg>
+                      Cerrar sesión
+                    </button>
+                  </form>
+                </li>
+              </ul>
+            </div>
+
+            {% else %} {% if request.endpoint not in ['auth.login',
+            'auth.register_get', 'auth.register_post'] %}
+            <a
+              class="btn btn-outline-light btn-sm"
+              href="{{ url_for('auth.login') }}"
+              >Ingresar</a
+            >
+            <a
+              class="btn btn-light btn-sm"
+              href="{{ url_for('auth.register_get') }}"
+              >Crear cuenta</a
+            >
+            {% endif %} {% endif %}
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container" style="max-width: 980px; padding-top: 18px">
+      {% with msgs = get_flashed_messages(with_categories=true) %} {% for c,m in
+      msgs %}
+      <div class="alert alert-{{ c }} alert-dismissible fade show" role="alert">
+        {{ m }}
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="alert"
+        ></button>
+      </div>
+      {% endfor %} {% endwith %} {% block content %}{% endblock %}
     </div>
-  </div>
-</nav>
 
-<!--  Flash messages  -->
-<div class="container" style="max-width: 980px; padding-top: 18px;">
-  {% with msgs = get_flashed_messages(with_categories=true) %}
-    {% for c,m in msgs %}
-      <div class="alert alert-{{ c }} mb-3">{{ m }}</div>
-    {% endfor %}
-  {% endwith %}
+    <div
+      id="toast-container"
+      style="position: fixed; top: 20px; right: 20px; z-index: 9999"
+    ></div>
 
-  {% block content %}{% endblock %}
-</div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      function showToast(message, type = "info") {
+        const container = document.getElementById("toast-container");
+        if (!container) return;
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-{% block extra_js %}{% endblock %}
-</body>
+        const toast = document.createElement("div");
+
+        const colors = {
+          success: "bg-success",
+          error: "bg-danger",
+          info: "bg-primary",
+        };
+
+        toast.className = `toast align-items-center text-white ${
+          colors[type] || colors.info
+        } border-0 show`;
+        toast.setAttribute("role", "alert");
+        toast.innerHTML = `
+          <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+          </div>
+        `;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+          toast.classList.remove("show");
+          setTimeout(() => toast.remove(), 300);
+        }, 4000);
+      }
+    </script>
+    {% block extra_js %}{% endblock %}
+  </body>
 </html>

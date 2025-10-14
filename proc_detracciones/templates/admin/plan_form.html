@@ -1,0 +1,208 @@
+{% extends "_base.html" %} {% block title %}{{ 'Editar' if plan else 'Crear' }}
+Plan{% endblock %} {% block content %}
+<h2 class="mb-4">{{ 'Editar' if plan else 'Crear' }} Plan</h2>
+
+<div class="card">
+  <div class="card-body">
+    <form
+      method="post"
+      action="{% if plan %}{{ url_for('admin.plan_edit', plan_id=plan.id) }}{% else %}{{ url_for('admin.plan_create') }}{% endif %}"
+    >
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Nombre del Plan *</label>
+          <input
+            type="text"
+            name="name"
+            class="form-control"
+            value="{{ plan.name if plan else '' }}"
+            placeholder="Ej: Plan Básico"
+            required
+          />
+        </div>
+
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Slug (identificador) *</label>
+          <input
+            type="text"
+            name="slug"
+            class="form-control"
+            value="{{ plan.slug if plan else '' }}"
+            placeholder="Ej: basico"
+            required
+          />
+          <small class="text-muted"
+            >Solo letras minúsculas, números y guiones</small
+          >
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Descripción</label>
+        <textarea name="description" class="form-control" rows="2">
+{{ plan.description if plan else '' }}</textarea
+        >
+      </div>
+
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Precio Mensual (S/)</label>
+          <input
+            type="number"
+            name="price_monthly"
+            class="form-control"
+            value="{{ (plan.price_monthly / 100)|int if plan else 0 }}"
+            min="0"
+            step="1"
+          />
+          <small class="text-muted"
+            >Solo números enteros sin centavos (Ej: 50, 100, 150)</small
+          >
+        </div>
+
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Duración del Trial (días)</label>
+          <input
+            type="number"
+            name="trial_days"
+            class="form-control"
+            value="{{ plan.trial_days if plan and plan.trial_days else '' }}"
+            min="1"
+            step="1"
+            placeholder="Opcional"
+          />
+          <small class="text-muted"
+            >Deja vacío si el plan no vence (se mide solo por usos)</small
+          >
+        </div>
+
+        <div class="col-md-6 mb-3">
+          <div class="form-check mt-4">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              name="is_unlimited"
+              id="is_unlimited"
+              {%
+              if
+              plan
+              and
+              plan.is_unlimited
+              %}checked{%
+              endif
+              %}
+            />
+            <label class="form-check-label" for="is_unlimited">
+              <strong>Plan Ilimitado</strong> (ignora las cuotas abajo)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <hr />
+
+      <h5 class="mb-3">Servicios Incluidos</h5>
+      <p class="text-muted small">
+        Selecciona los servicios que incluirá este plan y define sus límites
+      </p>
+
+      {% for service in services %}
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="form-check mb-3">
+            <input class="form-check-input service-checkbox" type="checkbox"
+            name="services" value="{{ service.id }}" id="service_{{ service.id
+            }}" data-service-id="{{ service.id }}" {% if plan and
+            plan.service_quotas|selectattr('service_id', 'equalto',
+            service.id)|list %}checked{% endif %}>
+            <label class="form-check-label" for="service_{{ service.id }}">
+              <strong>{{ service.name }}</strong>
+              {% if service.description %}
+              <br />
+              <small class="text-muted">{{ service.description }}</small>
+              {% endif %}
+            </label>
+          </div>
+
+          <div
+            class="quotas-section"
+            id="quotas_{{ service.id }}"
+            style="{% if not plan or not plan.service_quotas|selectattr('service_id', 'equalto', service.id)|list %}display: none;{% endif %}"
+          >
+            <div class="row">
+              <div class="col-md-6">
+                <label class="form-label">XML permitidos</label>
+                {% set quota = plan.service_quotas|selectattr('service_id',
+                'equalto', service.id)|first if plan else None %}
+                <input
+                  type="number"
+                  name="xml_quota_{{ service.id }}"
+                  class="form-control"
+                  value="{{ quota.xml_quota if quota else 40 }}"
+                  placeholder="-1 para ilimitado"
+                />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Ejecuciones permitidas</label>
+                <input
+                  type="number"
+                  name="runs_quota_{{ service.id }}"
+                  class="form-control"
+                  value="{{ quota.runs_quota if quota else 2 }}"
+                  placeholder="-1 para ilimitado"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %} {% if not services %}
+      <div class="alert alert-warning">
+        No hay servicios disponibles.
+        <a href="{{ url_for('admin.service_create') }}"
+          >Crear un servicio primero</a
+        >
+      </div>
+      {% endif %}
+
+      <div class="mt-4">
+        <button
+          type="submit"
+          class="btn btn-primary"
+          {%
+          if
+          not
+          services
+          %}disabled{%
+          endif
+          %}
+        >
+          {{ 'Actualizar' if plan else 'Crear' }} Plan
+        </button>
+        <a href="{{ url_for('admin.plans_list') }}" class="btn btn-secondary"
+          >Cancelar</a
+        >
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const checkboxes = document.querySelectorAll(".service-checkbox");
+
+    checkboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", function () {
+        const serviceId = this.dataset.serviceId;
+        const quotasSection = document.getElementById(`quotas_${serviceId}`);
+
+        if (this.checked) {
+          quotasSection.style.display = "block";
+        } else {
+          quotasSection.style.display = "none";
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

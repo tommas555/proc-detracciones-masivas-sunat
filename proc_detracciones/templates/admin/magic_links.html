@@ -1,0 +1,198 @@
+{% extends "_base.html" %} {% block title %}Generar Magic Links{% endblock %} {%
+block content %}
+<style>
+  /* Sobreescribir el contenedor principal solo para esta página */
+  body > .container {
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  /* Cabecera fija en la tabla */
+  .table-responsive {
+    max-height: calc(100vh - 450px);
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #f8f9fa; /* Color de fondo de la cabecera */
+    box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+  }
+</style>
+<div class="container-fluid mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">Generar Magic Links - Trial</h1>
+    <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary">
+      <i class="bi bi-arrow-left"></i> Volver a Usuarios
+    </a>
+  </div>
+
+  <!-- Formulario para generar magic link -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <h5 class="card-title">Generar Nuevo Magic Link</h5>
+      <form method="post" action="{{ url_for('admin.generate_magic_link') }}">
+        <div class="mb-3">
+          <label for="reference_note" class="form-label">
+            Referencia / Nota
+            <small class="text-muted"
+              >(Ej: Cliente ABC, Juan Pérez - cel 999888777, etc.)</small
+            >
+          </label>
+          <input
+            type="text"
+            class="form-control"
+            id="reference_note"
+            name="reference_note"
+            placeholder="¿Para quién es este link?"
+            maxlength="255"
+            oninput="toggleGenerateButton()"
+          />
+          <div class="form-text">
+            El username se generará automáticamente. Usa este campo para
+            recordar a quién le enviaste el link.
+          </div>
+        </div>
+        <button
+          type="submit"
+          class="btn btn-primary"
+          id="btn-generate"
+          disabled
+        >
+          <i class="bi bi-link-45deg"></i> Generar Magic Link
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Historial de magic links generados -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h5 class="card-title">Magic Links Generados (Últimos 50)</h5>
+
+      {% if tokens %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Username</th>
+              <th>Referencia</th>
+              <th>Estado</th>
+              <th>Usos</th>
+              <th>Expira</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for token in tokens %}
+            <tr>
+              <td>{{ token.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+              <td>
+                <strong>{{ token.user.username }}</strong>
+                {% if token.user.email %}
+                <br /><small class="text-muted">{{ token.user.email }}</small>
+                {% endif %}
+              </td>
+              <td>
+                {% if token.reference_note %} {{ token.reference_note }} {% else
+                %}
+                <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if token.revoked %}
+                <span class="badge bg-danger">Revocado</span>
+                {% elif token.used_count >= token.max_uses %}
+                <span class="badge bg-success">Usado</span>
+                {% elif token.expires_at < now %}
+                <span class="badge bg-secondary">Expirado</span>
+                {% else %}
+                <span class="badge bg-warning text-dark">Pendiente</span>
+                {% endif %}
+              </td>
+              <td>{{ token.used_count }} / {{ token.max_uses }}</td>
+              <td>{{ token.expires_at.strftime('%d/%m/%Y %H:%M') }}</td>
+              <td>
+                <div class="d-flex gap-2">
+                  {% if not token.revoked and token.used_count < token.max_uses
+                  and token.expires_at > now %}
+                  <button
+                    class="btn btn-sm btn-outline-primary"
+                    onclick="copyLink('{{ token.magic_link_url }}')"
+                  >
+                    <i class="bi bi-clipboard"></i> Copiar
+                  </button>
+                  <form
+                    method="post"
+                    action="{{ url_for('admin.revoke_magic_link', token_id=token.id) }}"
+                    style="display: inline"
+                  >
+                    <button
+                      type="submit"
+                      class="btn btn-sm btn-outline-danger"
+                      onclick="return confirm('¿Estás seguro de revocar este magic link? No podrá ser usado.')"
+                    >
+                      <i class="bi bi-x-circle"></i> Revocar
+                    </button>
+                  </form>
+                  {% else %}
+                  <button class="btn btn-sm btn-secondary" disabled>
+                    No disponible
+                  </button>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted">No hay magic links generados aún.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  function copyLink(link) {
+    navigator.clipboard
+      .writeText(link)
+      .then(() => {
+        showToast("✅ Link copiado al portapapeles", "success");
+      })
+      .catch(() => {
+        showToast("❌ Error al copiar el link", "error");
+      });
+  }
+</script>
+
+<script>
+  function toggleGenerateButton() {
+    const input = document.getElementById("reference_note");
+    const button = document.getElementById("btn-generate");
+
+    // Habilitar el botón solo si hay texto (sin contar espacios)
+    if (input.value.trim().length > 0) {
+      button.disabled = false;
+    } else {
+      button.disabled = true;
+    }
+  }
+
+  function copyLink(link) {
+    navigator.clipboard
+      .writeText(link)
+      .then(() => {
+        showToast("✅ Link copiado al portapapeles", "success");
+      })
+      .catch(() => {
+        showToast("❌ Error al copiar el link", "error");
+      });
+  }
+</script>
+{% endblock %}

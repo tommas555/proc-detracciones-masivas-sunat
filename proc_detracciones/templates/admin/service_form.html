@@ -1,0 +1,65 @@
+{% extends "_base.html" %} {% block title %}{{ 'Editar' if service else 'Crear'
+}} Servicio{% endblock %} {% block content %}
+<h2 class="mb-4">{{ 'Editar' if service else 'Crear' }} Servicio</h2>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label">Nombre del Servicio *</label>
+        <input
+          type="text"
+          name="name"
+          class="form-control"
+          value="{{ service.name if service else '' }}"
+          placeholder="Ej: Detracciones"
+          required
+        />
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Slug (identificador) *</label>
+        <input
+          type="text"
+          name="slug"
+          class="form-control"
+          value="{{ service.slug if service else '' }}"
+          placeholder="Ej: detracciones"
+          required
+        />
+        <small class="text-muted"
+          >Solo letras minúsculas, números y guiones. Se usará en las
+          URLs.</small
+        >
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Descripción</label>
+        <textarea
+          name="description"
+          class="form-control"
+          rows="3"
+          placeholder="Describe brevemente el servicio"
+        >
+{{ service.description if service else '' }}</textarea
+        >
+      </div>
+
+      <div class="mt-4">
+        <button type="submit" class="btn btn-primary">
+          {{ 'Actualizar' if service else 'Crear' }} Servicio
+        </button>
+        <a href="{{ url_for('admin.services_list') }}" class="btn btn-secondary"
+          >Cancelar</a
+        >
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if service %}
+<div class="alert alert-warning mt-4">
+  <strong>Nota:</strong> Si cambias el slug, deberás actualizar las rutas en el
+  código que usan este servicio.
+</div>
+{% endif %} {% endblock %}

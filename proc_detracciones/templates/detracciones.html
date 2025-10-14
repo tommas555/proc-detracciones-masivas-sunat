@@ -1,0 +1,519 @@
+{% extends "_base.html" %} {% block breadcrumb_inline %}
+<span class="separator">›</span>
+<span>Detracciones</span>
+{% endblock %} {% block content %}
+
+<!-- Banner con información de trial/estado -->
+{% if current_user.account_status == 'PENDIENTE_VERIFICACION' %}
+<div class="alert alert-warning mb-4">
+  <strong>📧 Verifica tu correo electrónico</strong>
+  <p class="mb-2 mt-2">
+    Para usar este servicio, primero debes verificar tu email.
+  </p>
+  <a href="{{ url_for('auth.upgrade') }}" class="btn btn-sm btn-primary"
+    >Verificar ahora →</a
+  >
+</div>
+
+{% elif current_user.account_status == 'PENDIENTE_PAGO' %}
+<div class="alert alert-warning mb-4">
+  <strong>📤 Envía tu comprobante de pago</strong>
+  <p class="mb-2 mt-2">
+    Tu email está verificado. Para usar este servicio, debes activar tu plan PRO
+    enviando tu comprobante de pago por WhatsApp.
+  </p>
+  <a href="{{ url_for('auth.upgrade') }}" class="btn btn-sm btn-primary"
+    >Enviar comprobante →</a
+  >
+</div>
+
+{% elif current_user.account_status == 'TRIAL_ACTIVO' %} {% if quota_info %} {%
+set xml_quota = quota_info.quota %} {% set xml_used = quota_info.used %} {% set
+xml_left = quota_info.remaining %} {% if not quota_info.is_unlimited and
+quota_info.remaining <= 0 %}
+<div class="alert alert-danger mb-4">
+  <strong>⚠️ Has alcanzado el límite de tu prueba gratuita.</strong>
+  <div class="mt-1 small">
+    Ya procesaste los <strong>{{ xml_quota }} archivos XML</strong> permitidos.
+  </div>
+  <div class="mt-2">
+    <a
+      href="{{ url_for('auth.upgrade') }}"
+      class="btn btn-sm btn-warning fw-bold"
+      >Activar plan PRO →</a
+    >
+  </div>
+</div>
+{% else %}
+<div class="alert alert-warning mb-4">
+  <strong>⏱️ Estás en versión de prueba.</strong> Algunas funciones tienen
+  límites.
+  <div class="mt-2">
+    <strong>Disponible en tu prueba:</strong>
+    <ul class="mb-1 mt-1">
+      {% if quota_info.is_unlimited %}
+      <li>Procesamiento <strong>ilimitado</strong> de archivos XML</li>
+      {% else %}
+      <li>
+        Te quedan
+        <strong>{{ xml_left }} de {{ xml_quota }} archivos XML</strong> para
+        procesar
+      </li>
+
+      {% if runs_info and not runs_info.is_unlimited %}
+      <li>
+        Puedes ejecutar el procesamiento
+        <strong
+          >{{ runs_info.remaining }} de {{ runs_info.quota }} veces</strong
+        >
+      </li>
+      {% endif %} {% endif %} {% if trial_expires_local %}
+      <li>Tu prueba vence el: <strong>{{ trial_expires_local }}</strong></li>
+      {% endif %}
+    </ul>
+  </div>
+</div>
+{% endif %} {% endif %} {% elif current_user.account_status == 'TRIAL_VENCIDO'
+%}
+<div class="alert alert-danger mb-4">
+  <strong>⚠️ Tu período de prueba ha vencido.</strong>
+  <a href="{{ url_for('auth.upgrade') }}" class="alert-link"
+    >Activa tu plan PRO</a
+  >
+  para continuar usando el servicio.
+</div>
+
+{% elif current_user.account_status == 'PENDIENTE_REVISION' %}
+<div class="alert alert-info mb-4">
+  <strong>🔍 Tu pago está en revisión.</strong> Te avisaremos cuando se active
+  tu plan Pro.
+</div>
+
+{% elif current_user.account_status == 'ACTIVO' %} {% endif %}
+
+<!-- Determinar si deshabilitar formulario -->
+{% set should_disable = current_user.account_status not in ['TRIAL_ACTIVO',
+'ACTIVO'] %} {% if current_user.account_status == 'TRIAL_ACTIVO' and quota_info
+%} {% if not quota_info.is_unlimited and quota_info.remaining <= 0 %} {% set
+should_disable = true %} {% endif %} {% endif %} {% if should_disable %}
+<div style="opacity: 0.5; pointer-events: none; user-select: none">
+  {% endif %}
+
+  <style>
+    .dz {
+      border: 2px dashed #b6c3d3;
+      border-radius: 12px;
+      background: #fff;
+      padding: 28px;
+      text-align: center;
+      transition: 0.2s ease-in-out;
+    }
+    .dz:hover {
+      border-color: #0d6efd33;
+      box-shadow: 0 0 0 4px #0d6efd0f;
+    }
+    .dz.dragover {
+      border-color: #0d6efd;
+      background: #f0f6ff;
+    }
+    .file-pills .badge {
+      font-weight: 500;
+    }
+    .count-badges .badge {
+      font-size: 0.83rem;
+      padding: 0.6rem 1rem;
+      border-radius: 24px;
+      min-width: 90px;
+      margin-right: 0.75rem;
+    }
+    .count-badges .badge.text-bg-success {
+      background-color: #12c123 !important;
+      color: rgb(0, 0, 0);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+  </style>
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body p-4 p-md-5">
+      <h1 class="h3 mb-4 fw-semibold">
+        Procesador de XML/ZIP a TXT de Detracciones
+      </h1>
+
+      <div id="serverMsg" class="alert d-none" role="alert"></div>
+
+      <!-- Banner azul solo para usuarios ACTIVOS (no trial) -->
+      {% if current_user.account_status == 'TRIAL_ACTIVO' %} {% if quota_info %}
+      {% set xml_quota = quota_info.quota %} {% set xml_used = quota_info.used
+      %} {% set xml_left = quota_info.remaining %} {% if not
+      quota_info.is_unlimited and quota_info.remaining <= 0 %}
+      <div class="alert alert-danger mb-4">
+        <strong>⏱️ Has agotado tu cuota de prueba.</strong>
+        <p class="mb-0">
+          Ya no puedes procesar más archivos.
+          <a href="{{ url_for('auth.upgrade') }}" class="alert-link"
+            >Activa tu plan PRO</a
+          >
+          para continuar.
+        </p>
+      </div>
+      {% else %} {% endif %} {% endif %} {% elif current_user.account_status ==
+      'ACTIVO' %}
+      <div
+        class="alert alert-info d-flex justify-content-between align-items-center"
+        role="alert"
+      >
+        <div>
+          <i class="bi bi-info-circle"></i>
+          {% if quota_info %} {% if quota_info.is_unlimited %}
+          <span class="fw-bold"
+            >Tienes procesamiento <strong>ilimitado</strong> de XML.</span
+          >
+          {% else %}
+          <span class="fw-bold">
+            Tu cuota restante de XML es:
+            <strong>{{ quota_info.remaining }}</strong> de {{ quota_info.quota
+            }} en total.
+          </span>
+          {% endif %} {% endif %}
+          <a
+            href="{{ url_for('auth.upgrade') }}"
+            class="btn btn-sm btn-outline-primary ms-2"
+            >Ver Planes</a
+          >
+        </div>
+      </div>
+
+      {% elif current_user.account_status == 'TRIAL_VENCIDO' %}
+      <div class="alert alert-danger mb-4">
+        <strong>⏱️ Tu período de prueba ha terminado.</strong>
+        <p class="mb-0">
+          Para seguir usando el servicio,
+          <a href="{{ url_for('auth.upgrade') }}" class="alert-link"
+            >activa tu plan PRO</a
+          >.
+        </p>
+      </div>
+      {% endif %}
+
+      <form
+        id="uploadForm"
+        method="post"
+        enctype="multipart/form-data"
+        target="downloadFrame"
+        class="vstack gap-4"
+      >
+        <input
+          type="hidden"
+          name="download_token"
+          id="download_token"
+          value=""
+        />
+
+        <div>
+          <label class="form-label fw-semibold">Tipo de depositante</label
+          ><br />
+          <div class="btn-group" role="group">
+            <input
+              type="radio"
+              class="btn-check"
+              name="tipo_depositante"
+              id="td_adq"
+              autocomplete="off"
+              value="adquiriente"
+            />
+            <label class="btn btn-outline-primary" for="td_adq"
+              >Adquiriente</label
+            >
+
+            <input
+              type="radio"
+              class="btn-check"
+              name="tipo_depositante"
+              id="td_prov"
+              autocomplete="off"
+              value="proveedor"
+              checked
+            />
+            <label class="btn btn-outline-primary" for="td_prov"
+              >Proveedor</label
+            >
+          </div>
+        </div>
+
+        <div>
+          <label class="form-label fw-semibold">Archivos XML o ZIP</label>
+          <div id="dropzone" class="dz">
+            <div class="h5 mb-1">Arrastra y suelta aquí</div>
+            <div class="text-muted">
+              o
+              <button
+                type="button"
+                class="btn btn-link p-0 align-baseline"
+                id="adjuntarBtn"
+              >
+                adjunta desde tu equipo
+              </button>
+            </div>
+            <div class="small mt-3" id="fileCount">
+              Ningún archivo seleccionado
+            </div>
+          </div>
+
+          <!-- uso display:none en lugar del atributo hidden -->
+          <input
+            type="file"
+            name="files"
+            id="files"
+            multiple
+            accept=".xml,.zip"
+            style="display: none"
+          />
+          <div
+            id="fileList"
+            class="file-pills mt-3 d-flex flex-wrap gap-2"
+          ></div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="lote" class="form-label fw-semibold"
+              >Número de Lote</label
+            >
+            <input
+              class="form-control"
+              type="text"
+              name="lote"
+              id="lote"
+              required
+              pattern="[0-9]{6}"
+              placeholder="Ej: 250001"
+            />
+            <div class="form-text">
+              Formato: AANNNN (Año + número secuencial).
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button
+            type="submit"
+            class="btn btn-primary"
+            id="submitButton"
+            disabled
+          >
+            Procesar y Descargar Resultados (TXT + CSV)
+          </button>
+          <button
+            type="button"
+            class="btn btn-danger"
+            id="clearButton"
+            disabled
+          >
+            Borrar selección
+          </button>
+        </div>
+
+        <div class="alert alert-info mt-2 mb-0">
+          <strong>Nota:</strong> Este sistema procesa archivos XML de facturas
+          electrónicas y genera el archivo .txt para pago masivo de detracciones
+          en SUNAT, junto con un reporte de omitidos (.csv) dentro de un .zip.
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if should_disable %}
+</div>
+{% endif %}
+
+<iframe name="downloadFrame" id="downloadFrame" style="display: none"></iframe>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("uploadForm");
+    const filesInput = document.getElementById("files");
+    const dz = document.getElementById("dropzone");
+    const adjuntarBtn = document.getElementById("adjuntarBtn");
+    const fileCountDiv = document.getElementById("fileCount");
+    const fileListDiv = document.getElementById("fileList");
+    const submitButton = document.getElementById("submitButton");
+    const clearButton = document.getElementById("clearButton");
+    const loteInput = document.getElementById("lote");
+    const serverMsg = document.getElementById("serverMsg");
+    const iframe = document.getElementById("downloadFrame");
+    const tokenInput = document.getElementById("download_token");
+
+    const MAX_MB = 50;
+    const DOWNLOAD_COOKIE_NAME = "fileDownloadToken";
+    const AUTO_RELOAD_AFTER_SUCCESS_MS = 1200;
+    const WATCH_TIMEOUT_MS = 60000;
+
+    let picked = [];
+    const sig = (f) => `${f.name}#${f.size}#${f.lastModified}`;
+    const totalBytes = () => picked.reduce((a, f) => a + f.size, 0);
+    const fmtMB = (b) => (b / 1024 / 1024).toFixed(1) + " MB";
+
+    function showMsg(text, type) {
+      serverMsg.className = "alert alert-" + type;
+      serverMsg.textContent = text;
+      serverMsg.classList.remove("d-none");
+    }
+    function clearMsg() {
+      serverMsg.className = "alert d-none";
+      serverMsg.textContent = "";
+    }
+
+    function addFiles(fileList) {
+      const seen = new Set(picked.map(sig));
+      for (const f of fileList) {
+        if (!/\.((xml)|(zip))$/i.test(f.name)) continue;
+        const key = sig(f);
+        if (!seen.has(key)) {
+          picked.push(f);
+          seen.add(key);
+        }
+      }
+      updateUI();
+    }
+
+    function renderFileList() {
+      if (!picked.length) {
+        fileListDiv.innerHTML = "";
+        fileCountDiv.innerHTML =
+          '<span class="text-muted">Ningún archivo seleccionado</span>';
+        return;
+      }
+      fileCountDiv.innerHTML = `<span class="count-badges">
+         <span class="badge rounded-pill text-bg-success">${picked.length} archivo(s)</span>
+       </span>`;
+      let html = "";
+      for (let i = 0; i < picked.length; i++) {
+        html += `<span class="badge text-bg-light border">${picked[i].name}</span> `;
+      }
+      fileListDiv.innerHTML = html;
+    }
+
+    function updateUI() {
+      renderFileList();
+      const over = totalBytes() > MAX_MB * 1024 * 1024;
+      const hasFiles = picked.length > 0;
+      const validLote = loteInput.validity.valid;
+
+      submitButton.disabled = !(hasFiles && validLote && !over);
+      clearButton.disabled = !hasFiles;
+
+      if (over) {
+        showMsg(
+          `El total (${fmtMB(totalBytes())}) supera el límite de ${MAX_MB} MB.`,
+          "warning"
+        );
+      } else if (serverMsg.classList.contains("alert-warning")) {
+        clearMsg();
+      }
+    }
+
+    // abrir selector al hacer click en "adjunta desde tu equipo"
+    adjuntarBtn.addEventListener("click", () => filesInput.click());
+
+    filesInput.addEventListener("change", (e) => {
+      addFiles(e.target.files);
+      e.target.value = "";
+    });
+
+    ["dragenter", "dragover"].forEach((evt) => {
+      dz.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dz.classList.add("dragover");
+      });
+    });
+    ["dragleave", "drop"].forEach((evt) => {
+      dz.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dz.classList.remove("dragover");
+      });
+    });
+    dz.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
+
+    clearButton.addEventListener("click", function () {
+      picked = [];
+      filesInput.value = "";
+      loteInput.value = "";
+      clearMsg();
+      updateUI();
+    });
+
+    loteInput.addEventListener("input", updateUI);
+    updateUI();
+
+    function getCookie(name) {
+      const v = ("; " + document.cookie).split("; " + name + "=");
+      if (v.length === 2) return v.pop().split(";").shift();
+      return null;
+    }
+    function deleteCookie(name) {
+      document.cookie = name + "=; Max-Age=0; path=/";
+    }
+
+    function watchDownloadToken(token) {
+      const start = Date.now();
+      const intv = setInterval(() => {
+        const cookie = getCookie(DOWNLOAD_COOKIE_NAME);
+        if (cookie === token) {
+          clearInterval(intv);
+          deleteCookie(DOWNLOAD_COOKIE_NAME);
+          showMsg("Archivo generado y descargado correctamente.", "success");
+          picked = [];
+          loteInput.value = "";
+          updateUI();
+          submitButton.disabled = false;
+          submitButton.textContent =
+            "Procesar y Descargar Resultados (TXT + CSV)";
+          if (AUTO_RELOAD_AFTER_SUCCESS_MS > 0)
+            setTimeout(
+              () => window.location.reload(),
+              AUTO_RELOAD_AFTER_SUCCESS_MS
+            );
+        } else if (Date.now() - start > WATCH_TIMEOUT_MS) {
+          clearInterval(intv);
+          showMsg(
+            "No se detectó la descarga. Revisa bloqueadores o reintenta.",
+            "warning"
+          );
+          submitButton.disabled = false;
+          submitButton.textContent =
+            "Procesar y Descargar Resultados (TXT + CSV)";
+        }
+      }, 400);
+    }
+
+    iframe.onload = function () {
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        const bodyText = doc && doc.body ? doc.body.textContent.trim() : "";
+        if (bodyText) {
+          showMsg(bodyText, "danger");
+          submitButton.disabled = false;
+          submitButton.textContent =
+            "Procesar y Descargar Resultados (TXT + CSV)";
+        }
+      } catch (e) {}
+    };
+
+    form.addEventListener("submit", function () {
+      clearMsg();
+      const dt = new DataTransfer();
+      picked.forEach((f) => dt.items.add(f));
+      filesInput.files = dt.files;
+
+      const token = Math.random().toString(36).slice(2);
+      tokenInput.value = token;
+      submitButton.disabled = true;
+      submitButton.textContent = "Procesando...";
+      watchDownloadToken(token);
+    });
+  });
+</script>
+
+{% endblock %} files

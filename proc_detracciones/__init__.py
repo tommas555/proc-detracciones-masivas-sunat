@@ -9,6 +9,58 @@ from .commands import register_cli
 
 from proc_detracciones.extensions import db, migrate
 
+
+# proc_detracciones/__init__.py
+import os
+from pathlib import Path
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+from flask import Flask, flash, redirect, request, url_for, current_app
+
+# CARGAR .env ANTES DE IMPORTAR Config
+from dotenv import load_dotenv
+
+# Buscar .env en la raíz del proyecto (un nivel arriba de este archivo)
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(env_path)
+
+import os
+from pathlib import Path
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+from flask import Flask, flash, redirect, request, url_for, current_app
+from dotenv import load_dotenv
+
+
+
+
+
+
+# Buscar .env en la raíz del proyecto
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(env_path)
+
+# DEBUG: Imprimir INMEDIATAMENTE después de cargar
+print("=" * 60)
+print(f"[INIT] .env path: {env_path}")
+print(f"[INIT] .env exists: {env_path.exists()}")
+print(f"[INIT] MAIL_USERNAME desde os.getenv: {os.getenv('MAIL_USERNAME')}")
+print(f"[INIT] MAIL_PASSWORD desde os.getenv: {'***SET***' if os.getenv('MAIL_PASSWORD') else 'NOT SET'}")
+print("=" * 60)
+
+
+
+
+
+# Ahora sí importar Config (que ya podrá leer las variables)
+from .config import Config
+from .extensions import db, login_manager, migrate
+from .commands import register_cli
+
+
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config())
@@ -73,18 +125,28 @@ def create_app():
     login_manager.init_app(app)
 
     # Blueprints
+    # Blueprints
     from .routes.auth import auth_bp
-    from .routes.web import web_bp
+    from .routes.home import home_bp
+    from .routes.detracciones import detracciones_bp  # ← Cambiar esta línea
+
+
+
+
     app.register_blueprint(auth_bp)
-    app.register_blueprint(web_bp)
+    app.register_blueprint(home_bp)
+    app.register_blueprint(detracciones_bp)  # ← Y esta
 
     # CLI
     register_cli(app)
 
+    
+    from proc_detracciones.routes.admin import admin_bp
+    app.register_blueprint(admin_bp)
+    
     # DB + user_loader
     with app.app_context():
         from .models import User, AuthToken
-        db.create_all()
 
         @login_manager.user_loader
         def load_user(user_id: str):

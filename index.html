@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Libro de Reclamaciones en el Perú</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Source Sans Pro", sans-serif;
+        overflow: hidden;
+      }
+      .slide {
+        width: 1280px;
+        height: 720px;
+        position: relative;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 236, 179, 0.85) 0%,
+          rgba(255, 220, 120, 0.7) 100%
+        );
+        overflow: hidden;
+      }
+      .background-shapes {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+      }
+      .circle {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(255, 204, 0, 0.15);
+      }
+      .circle-1 {
+        width: 300px;
+        height: 300px;
+        top: -100px;
+        left: -100px;
+      }
+      .circle-2 {
+        width: 200px;
+        height: 200px;
+        bottom: -50px;
+        right: 100px;
+      }
+      .circle-3 {
+        width: 150px;
+        height: 150px;
+        top: 100px;
+        right: 200px;
+      }
+      .line {
+        position: absolute;
+        background: rgba(255, 204, 0, 0.2);
+      }
+      .line-1 {
+        width: 3px;
+        height: 400px;
+        transform: rotate(45deg);
+        top: 150px;
+        left: 200px;
+      }
+      .line-2 {
+        width: 3px;
+        height: 300px;
+        transform: rotate(-30deg);
+        bottom: 100px;
+        right: 300px;
+      }
+      .content {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        padding: 0 100px;
+      }
+      .logo-left {
+        position: absolute;
+        top: 30px;
+        left: 30px;
+        width: 250px;
+        height: auto;
+        border-radius: 8px;
+      }
+      .logo-right {
+        position: absolute;
+        top: 30px;
+        right: 30px;
+        width: 150px;
+        height: auto;
+        border-radius: 8px;
+      }
+      .title {
+        font-size: 60px;
+        font-weight: 700;
+        color: #333;
+        text-align: center;
+        margin-bottom: 30px;
+        line-height: 1.2;
+      }
+      .subtitle {
+        font-size: 24px;
+        font-weight: 600;
+        color: #555;
+        text-align: center;
+        margin-bottom: 60px;
+      }
+      .presenter {
+        font-size: 35px;
+        color: #666;
+        position: absolute;
+        bottom: 80px;
+        right: 70px;
+        text-align: right;
+      }
+      .shape {
+        position: absolute;
+        background: rgba(255, 204, 0, 0.1);
+      }
+      .shape-1 {
+        width: 100px;
+        height: 100px;
+        transform: rotate(45deg);
+        bottom: 100px;
+        left: 150px;
+      }
+      .shape-2 {
+        width: 80px;
+        height: 80px;
+        border-radius: 20px;
+        top: 200px;
+        left: 100px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="slide">
+      <div class="background-shapes">
+        <div class="circle circle-1"></div>
+        <div class="circle circle-2"></div>
+        <div class="circle circle-3"></div>
+        <div class="line line-1"></div>
+        <div class="line line-2"></div>
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+      </div>
+
+      <img
+        src="https://z-cdn-media.chatglm.cn/files/af501b3e-8e09-4a63-b1da-3f184e248cff_logo_instituto.jpeg?auth_key=1791840411-0f4f760c68694dab95e367312cfb8e36-0-53d187dd1c5f8f6d4ffda766ee210170"
+        alt="Logo Gestión"
+        class="logo-left"
+      />
+      <img
+        src="https://z-cdn-media.chatglm.cn/files/6cca5101-7dca-4d40-98d9-6d960467366f_logo_gestion.jpeg?auth_key=1791840411-1eaad3c2a2024ce3b1bf6ad333742df6-0-704178e10e28da3b4ad7435e7f212248"
+        alt="Logo Instituto"
+        class="logo-right"
+      />
+
+      <div class="content">
+        <h1 class="title">
+          Ámbito de aplicación y obligaciones de los proveedores
+        </h1>
+        <h2 class="subtitle">
+          Aplicación práctica del Libro de Reclamaciones en el Perú
+        </h2>
+      </div>
+
+      <div class="presenter">Presentado por: Lic. Elcy Bedia Cruz</div>
+    </div>
+  </body>
+</html>

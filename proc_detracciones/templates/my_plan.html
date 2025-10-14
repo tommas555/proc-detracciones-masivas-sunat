@@ -1,0 +1,76 @@
+{% extends "_base.html" %} {% block title %}Mi Plan{% endblock %} {% block
+content %}
+<h2 class="mb-4">Mi Plan</h2>
+
+<div class="row">
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-body">
+        {% if current_user.account_status == 'ACTIVO' %}
+        <h5 class="card-title">Plan PRO Activo</h5>
+        <p class="text-success">✓ Acceso completo sin límites</p>
+
+        {% if current_user.subscription_end %}
+        <div class="mb-3">
+          <strong>Vencimiento:</strong> {{
+          current_user.subscription_end.strftime('%d/%m/%Y %H:%M') }}
+        </div>
+        {% endif %} {% if current_user.months_paid %}
+        <div class="mb-3">
+          <strong>Meses pagados:</strong> {{ current_user.months_paid }}
+        </div>
+        {% endif %} {% elif current_user.account_status == 'TRIAL_ACTIVO' %}
+        <h5 class="card-title">Periodo de Prueba</h5>
+
+        <div class="mb-4">
+          <div class="d-flex justify-content-between mb-2">
+            <span>XML Procesados</span>
+            <span
+              >{{ current_user.xml_used }}/{{ current_user.xml_quota }}</span
+            >
+          </div>
+          <div class="progress" style="height: 25px">
+            <div
+              class="progress-bar"
+              style="width: {{ (current_user.xml_used / current_user.xml_quota * 100)|round|int }}%"
+            >
+              {{ (current_user.xml_used / current_user.xml_quota *
+              100)|round|int }}%
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <div class="d-flex justify-content-between mb-2">
+            <span>Ejecuciones</span>
+            <span
+              >{{ current_user.runs_used }}/{{ current_user.runs_quota }}</span
+            >
+          </div>
+          <div class="progress" style="height: 25px">
+            <div
+              class="progress-bar bg-info"
+              style="width: {{ (current_user.runs_used / current_user.runs_quota * 100)|round|int }}%"
+            >
+              {{ (current_user.runs_used / current_user.runs_quota *
+              100)|round|int }}%
+            </div>
+          </div>
+        </div>
+
+        {% if current_user.trial_ends_at %}
+        <div class="alert alert-warning">
+          <strong>Vence:</strong> {{
+          current_user.trial_ends_at.strftime('%d/%m/%Y %H:%M') }}
+        </div>
+        {% endif %} {% else %}
+        <h5 class="card-title">Estado: {{ current_user.account_status }}</h5>
+        <p class="text-muted">
+          Contacta al administrador para activar tu plan.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

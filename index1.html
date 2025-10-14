@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Logro de Aprendizaje</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Source Sans Pro", sans-serif;
+        overflow: hidden;
+      }
+      .slide {
+        width: 1280px;
+        min-height: 720px;
+        position: relative;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 236, 179, 0.85) 0%,
+          rgba(255, 220, 120, 0.7) 100%
+        );
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .background-shapes {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+      }
+      .circle {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(255, 204, 0, 0.15);
+      }
+      .circle-1 {
+        width: 300px;
+        height: 300px;
+        top: -100px;
+        left: -100px;
+      }
+      .circle-2 {
+        width: 200px;
+        height: 200px;
+        bottom: -50px;
+        right: 100px;
+      }
+      .circle-3 {
+        width: 150px;
+        height: 150px;
+        top: 100px;
+        right: 200px;
+      }
+      .line {
+        position: absolute;
+        background: rgba(255, 204, 0, 0.2);
+      }
+      .line-1 {
+        width: 3px;
+        height: 400px;
+        transform: rotate(45deg);
+        top: 150px;
+        left: 200px;
+      }
+      .line-2 {
+        width: 3px;
+        height: 300px;
+        transform: rotate(-30deg);
+        bottom: 100px;
+        right: 300px;
+      }
+      .content {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 60px 70px;
+        flex-grow: 1;
+      }
+      .header {
+        margin-bottom: 40px;
+      }
+      .title {
+        font-size: 65px;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 10px;
+      }
+      .subtitle {
+        font-size: 24px;
+        font-weight: 600;
+        color: #555;
+      }
+      .main-content {
+        display: flex;
+        flex-grow: 1;
+        gap: 40px;
+      }
+      .objective-box {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.6);
+        border-radius: 15px;
+        padding: 30px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        display: flex;
+        flex-direction: column;
+      }
+      .objective-title {
+        font-size: 35px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+      }
+      .objective-title i {
+        margin-right: 10px;
+        color: #ff9800;
+      }
+      .objective-list {
+        list-style-type: none;
+      }
+      .objective-item {
+        font-size: 20px;
+        color: #444;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: flex-start;
+      }
+      .objective-item i {
+        color: #ff9800;
+        margin-right: 10px;
+        font-size: 18px;
+        margin-top: 4px;
+      }
+      .shape {
+        position: absolute;
+        background: rgba(255, 204, 0, 0.1);
+      }
+      .shape-1 {
+        width: 100px;
+        height: 100px;
+        transform: rotate(45deg);
+        bottom: 100px;
+        left: 150px;
+      }
+      .shape-2 {
+        width: 80px;
+        height: 80px;
+        border-radius: 20px;
+        top: 200px;
+        left: 100px;
+      }
+      .highlight {
+        color: #e65100;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="slide">
+      <div class="content">
+        <div class="header">
+          <h1 class="title">LOGRO DE APRENDIZAJE</h1>
+        </div>
+
+        <div class="main-content">
+          <div class="objective-box">
+            <h1 class="objective-title">
+              Identifica el ámbito de aplicación del Libro de Reclamaciones y
+              explica las obligaciones que recaen sobre distintos tipos de
+              proveedores
+            </h1>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

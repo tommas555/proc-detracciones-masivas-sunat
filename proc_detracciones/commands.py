@@ -50,6 +50,57 @@ def _apply_quota_defaults(u: User, app):
 # ───────────────────────── CLI ─────────────────────────
 def register_cli(app):
 
+    @app.cli.command("init-db")
+    def init_db_command():
+        """Crea las tablas y un usuario admin por defecto si no existe."""
+        
+        # 1. Crear todas las tablas
+        db.create_all()
+        click.echo("✅ Tablas de la base de datos creadas.")
+
+        # 2. Verificar si ya existe un admin
+        if User.query.filter_by(role="admin").first():
+            click.echo("ℹ️  Ya existe un usuario administrador. No se ha creado uno nuevo.")
+            return
+
+        # 3. Obtener la lista de emails y la contraseña desde la configuración
+        admin_emails_str = app.config.get("ADMIN_EMAILS", "")
+        admin_password = app.config.get("ADMIN_PASSWORD")
+
+        if not admin_emails_str or not admin_password:
+            click.echo(
+                "❌ Error: Las variables ADMIN_EMAILS y ADMIN_PASSWORD no están configuradas en el .env.",
+                err=True
+            )
+            return
+
+        # 4. Tomar el primer email de la lista para crear el admin
+        admin_email_list = [e.strip() for e in admin_emails_str.split(',') if e.strip()]
+        if not admin_email_list:
+            click.echo("❌ Error: La variable ADMIN_EMAILS está vacía.", err=True)
+            return
+            
+        admin_email = admin_email_list[0]
+
+        # 5. Crear el usuario administrador
+        admin_user = User(
+            username=admin_email.split("@")[0],
+            email=admin_email,
+            role="admin",
+            is_email_verified=True,
+            account_status="ACTIVO"
+        )
+        admin_user.set_password(admin_password)
+        
+        db.session.add(admin_user)
+        db.session.commit()
+
+        click.echo(f"✅ Usuario administrador por defecto creado con el email: {admin_email}")
+
+
+
+
+
     @app.cli.command("trial:invite")
     @click.argument("ident")  # email o username existente/nuevo
     def trial_invite(ident):
@@ -70,24 +121,14 @@ def register_cli(app):
     @app.cli.command("trial:new")
     @click.option("--prefix", default="user", help="Prefijo del username (por defecto: user)")
     @click.option("--digits", default=4, type=int, help="Cantidad de dígitos numéricos")
-    @click.option("--xml", type=int, default=None, help="XML quota (opcional)")
-    @click.option("--runs", type=int, default=None, help="Runs quota (opcional)")
-    def trial_new(prefix, digits, xml, runs):
+    def trial_new(prefix, digits):
         """
         Crea un usuario trial NUEVO (username aleatorio) y devuelve un Magic Link.
-        Nota: el trial empieza al primer uso del link (no se fija aquí).
         """
         uname = _gen_username(prefix=prefix, digits=digits)
-
-        # Crear usuario con cuotas/contadores; SIN trial_ends_at (se fija en magic_post)
-        u = User(username=uname)
-        _apply_quota_defaults(u, app)
-        if xml is not None:  u.xml_quota = xml
-        if runs is not None: u.runs_quota = runs
-        db.session.add(u)
-        db.session.commit()
-
-        # Generar magic link
+        
+        # ✅ NO crear el usuario aquí, dejar que create_magic_link lo haga
+        # Generar magic link (que creará el usuario automáticamente)
         try:
             link = create_magic_link(uname, "invite_trial")
         except Exception as e:
@@ -99,6 +140,9 @@ def register_cli(app):
             click.echo(f"username={uname}\n{scheme}://{server}{link}")
         else:
             click.echo(f"username={uname}\n{link}")
+
+
+            
 
     @app.cli.command("trial:set")
     @click.argument("ident")

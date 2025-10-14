@@ -1,0 +1,1 @@
+FLASK_APP=proc_detracciones:create_app
